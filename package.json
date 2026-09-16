@@ -1,0 +1,53 @@
+{
+  "name": "lpc-spritesheet-mcp",
+  "version": "1.1.0",
+  "description": "MCP server that generates Universal LPC character spritesheets headlessly (no browser) from the LiberatedPixelCup asset pack: 657 items, 6 body types, palette recoloring, 15 standard animations plus oversize custom ones",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "spritesheet",
+    "sprite",
+    "pixel-art",
+    "lpc",
+    "liberated-pixel-cup",
+    "game-assets",
+    "character-generator",
+    "gamedev"
+  ],
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "lpc-spritesheet-mcp": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "scripts",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "setup-assets": "node scripts/setup-assets.mjs",
+    "test": "node --test \"test/*.mjs\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kanishka-namdeo/lpc-spritesheet-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/issues"
+  },
+  "homepage": "https://github.com/kanishka-namdeo/lpc-spritesheet-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@napi-rs/canvas": "^0.1.80",
+    "zod": "^4.6.5"
+  }
+}
