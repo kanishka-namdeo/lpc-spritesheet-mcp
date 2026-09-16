@@ -35,6 +35,7 @@
   "scripts": {
     "start": "node src/index.js",
     "setup-assets": "node scripts/setup-assets.mjs",
+    "showcase": "node scripts/make-showcase.mjs",
     "test": "node --test \"test/*.mjs\""
   },
   "repository": {
