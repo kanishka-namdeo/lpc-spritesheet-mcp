@@ -10,11 +10,9 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { assetCandidates, hasAssets } from "../src/assets-dir.js";
 
 const REPO = "https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator.git";
-
-const hasAssets = (dir) =>
-  fs.existsSync(path.join(dir, "sheet_definitions")) && fs.existsSync(path.join(dir, "spritesheets"));
 
 let target;
 if (process.env.LPC_ASSETS_DIR) {
@@ -24,16 +22,12 @@ if (process.env.LPC_ASSETS_DIR) {
     process.exit(0);
   }
 } else {
-  const sibling = path.resolve(import.meta.dirname, "..", "..", "lpc-generator-src");
-  if (hasAssets(sibling)) {
-    console.log(`Assets already present at ${sibling} — nothing to do.`);
+  const present = assetCandidates().find(hasAssets);
+  if (present) {
+    console.log(`Assets already present at ${present} — nothing to do.`);
     process.exit(0);
   }
   target = path.join(os.homedir(), ".lpc-spritesheet", "lpc-generator-src");
-  if (hasAssets(target)) {
-    console.log(`Assets already present at ${target} — nothing to do.`);
-    process.exit(0);
-  }
 }
 
 try {

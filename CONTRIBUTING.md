@@ -14,10 +14,12 @@ npm run setup-assets        # → ~/.lpc-spritesheet/lpc-generator-src
 # (or clone Universal-LPC-Spritesheet-Character-Generator yourself
 #  next to this repo as ../lpc-generator-src, or anywhere + LPC_ASSETS_DIR)
 
-npm test                    # 32 tests: engine + real stdio MCP client
+npm test                    # 36 passing items: engine tests + real stdio MCP client tests
 ```
 
-`LPC_ASSETS_DIR` overrides where the server looks for the asset pack.
+`LPC_ASSETS_DIR` overrides where the server looks for the asset pack, and the test suite honours the
+same order the server does (`src/assets-dir.js`), so a pack installed by `npm run setup-assets` is
+enough — no export needed.
 
 ## Project layout
 
@@ -25,10 +27,13 @@ npm test                    # 32 tests: engine + real stdio MCP client
   (`constants`, `catalog`, `recolor`, `sheet`, `selection`, `credits`,
   `custom-animations`). Plain ESM JavaScript, no build step.
 - `src/index.js` — MCP tool layer. `src/character.js` — shared request
-  pipeline (input normalization, rendering, saving).
-- `docs/ARCHITECTURE.md` — the upstream → port mapping and invariants every
-  change must preserve. **Read it before touching `src/engine/`.**
+  pipeline (input normalization, rendering, saving). `src/assets-dir.js` — the one
+  implementation of the asset-pack discovery order.
+- `docs/ARCHITECTURE.md` — the upstream → port mapping, local inventions, diagrams and invariants
+  every change must preserve. **Read it before touching `src/engine/`.**
 - `docs/capability-inventory.md` — what the upstream generator can do.
+- `docs/img/` — every image the README embeds, all generated. See the image rule below.
+- `test/` — the acceptance gate. `scripts/` — setup and docs-asset generation.
 
 ## Ground rules
 
@@ -44,9 +49,15 @@ npm test                    # 32 tests: engine + real stdio MCP client
    this repo, and keep attribution files written next to generated sheets.
 4. **No secrets, no assets in git.** CI and contributors rely on the asset
    clone step, not vendored copies.
+5. **Docs images are generated, never hand-placed.** Everything in `docs/img/` comes from
+   `npm run assets` (`diagrams` → the architecture SVG, `showcase` → the rendered banners and
+   gallery, `demo` → the animated session capture). A change that alters visible rendering must
+   regenerate them in the same pass, and each render keeps its credits sidecar.
 
 ## Reporting bugs
 
-Open an issue with: tool name, exact arguments, observed vs expected JSON
-result, and (for render bugs) the output PNG + `selections` echo from the
-result payload.
+Open a [new issue](https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/issues/new/choose) using
+the bug or asset-pack template. They ask for the evidence that makes a report reproducible: the tool
+name, the exact arguments JSON, the FULL JSON payload returned, and the server's stderr block (it
+prints which pack locations it searched). For render bugs, attach the output PNG and the
+`selections` echo from the result payload.

@@ -96,7 +96,9 @@ These bind every subtree. Child docs may add local detail but may not weaken the
 - **Attribution is a product feature, not a courtesy.** Every render writes
   `<name>-credits.csv` and `<name>-credits.txt` beside the PNG (assets are a mix of
   OGA-BY 3.0, CC-BY-SA 3.0, CC-BY 3.0/4.0 and GPL). `include_credits` defaults to on and
-  a change that drops attribution files is a licensing regression.
+  a change that drops attribution files is a licensing regression. The duty also covers this
+  repo's own committed imagery: every generated render in `docs/img/` ships a credits sidecar
+  (`docs/AGENTS.md` owns the rule).
 - **Code is GPL-3.0-only** because it derives from the GPL upstream. Assets keep their own
   licenses; the two are never conflated.
 - **The universal sheet layout is an external contract.** 13 columns x 54 rows of 64px
@@ -111,14 +113,17 @@ These bind every subtree. Child docs may add local detail but may not weaken the
 
 ## Asset Discovery Order
 
-Only `src/index.js` implements the full order. Other entry points implement subsets, so a
-setup that works for the server can still fail for the test suite or the showcase script.
+One implementation: `src/assets-dir.js` (`assetCandidates()`, `hasAssets()`, `findAssetsDir()`).
+The server, `test/` and `scripts/` all import it, so a pack that satisfies one of them satisfies all.
+(Three private copies of this order are what let CI pass on a dev box and fail on the runners.)
 
 1. `$LPC_ASSETS_DIR`
 2. Sibling clone `../lpc-generator-src` (the dev-checkout convention)
 3. `~/.lpc-spritesheet/lpc-generator-src` (where `npm run setup-assets` clones)
 
-A valid pack is a directory containing both `sheet_definitions/` and `spritesheets/`.
+A valid pack is a directory containing both `sheet_definitions/` and `spritesheets/`. The
+`StdioClientTransport` in the end-to-end test must pass `LPC_ASSETS_DIR` explicitly: the SDK inherits
+only a small env allowlist, so an unset child environment is the difference between green and red CI.
 
 ## Documentation Rules
 
@@ -141,9 +146,9 @@ When the user requests a durable behavior change, record it here or in the relev
 | `src/` | Shipped runtime: the MCP tool surface and the shared character-request pipeline |
 | `src/engine/` | Headless port of the upstream renderer; fidelity rules |
 | `test/` | The acceptance gate: engine tests, real stdio MCP tests, canvas smoke |
-| `scripts/` | Asset-pack setup and README showcase generation |
+| `scripts/` | Asset-pack setup and the generators behind every committed image in `docs/img/` |
 | `docs/` | Durable internals: port map, invariants, upstream capability record |
-| `.github/` | CI: the matrix, the asset-pack checkout, the no-assets assertion |
+| `.github/` | CI: the matrix, the asset-pack checkout, the no-assets assertion; plus issue/PR templates and Dependabot |
 
 Root-owned, with no child of their own: `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 `SECURITY.md`, `LICENSE`, `package.json`, `.gitignore`, `.gitattributes`.

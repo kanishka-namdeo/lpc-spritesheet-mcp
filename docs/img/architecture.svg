@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="716" viewBox="0 0 1000 716" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">lpc-spritesheet-mcp system architecture</title>
+  <desc id="arch-desc">An MCP client calls seven tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>
+  <defs>
+    <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L8 3.5 L0 7 z" fill="#4a5a70"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="716" rx="14" fill="#eef1f5" stroke="#b6c1cf" stroke-width="1.5"/>
+  <text x="32" y="42" font-size="19" font-weight="bold" fill="#161f2b">lpc-spritesheet-mcp · system architecture</text>
+  <text x="32" y="60" font-size="10" fill="#46566b">headless Universal LPC spritesheet compositor · plain ESM, no build step · every arrow is a real call or import edge</text>
+  <g id="boxes">
+    <rect x="32" y="88" width="190" height="112" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="127" y="106" text-anchor="middle" font-size="13" font-weight="bold" fill="#161f2b">MCP client</text>
+    <text x="127" y="120.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">any stdio host:</text>
+    <text x="127" y="133" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">Zed · Claude Code</text>
+    <text x="127" y="145.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">test/mcp-client-test</text>
+    <text x="127" y="158" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">tools/call · tools/list</text>
+    <rect x="266" y="76" width="306" height="156" rx="10" fill="#e2e8f0" stroke="#95a3b6" stroke-width="1.2"/>
+    <text x="419" y="94" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#161f2b">src/index.js</text>
+    <text x="419" y="108.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">server bootstrap · stdio JSON-RPC · 7 tools</text>
+    <rect x="280" y="114" width="278" height="48" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="419" y="132" text-anchor="middle" font-size="8.9" font-weight="bold" fill="#161f2b">discovery tools</text>
+    <text x="419" y="144.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">list_categories · list_items</text>
+    <text x="419" y="157" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">list_palettes · list_animations</text>
+    <rect x="280" y="170" width="278" height="48" rx="7" fill="#dce9f7" stroke="#33546f" stroke-width="1.2"/>
+    <text x="419" y="188" text-anchor="middle" font-size="8.9" font-weight="bold" fill="#161f2b">render tools</text>
+    <text x="419" y="200.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">generate_spritesheet</text>
+    <text x="419" y="213" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">get_animation · get_preview</text>
+    <rect x="616" y="80" width="186" height="122" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="709" y="98" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#161f2b">src/character.js</text>
+    <text x="709" y="112.5" text-anchor="middle" font-size="8.9" font-weight="bold" fill="#46566b">renderAndSave</text>
+    <text x="709" y="125" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">normalize · render</text>
+    <text x="709" y="137.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">extract · save</text>
+    <text x="709" y="150" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">resolveOutputPath</text>
+    <text x="709" y="162.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">fs.writeFileSync</text>
+    <rect x="846" y="80" width="122" height="122" rx="7" fill="#eef1f5" stroke="#b6c1cf" stroke-width="1.2"/>
+    <text x="907" y="98" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161f2b">Legend</text>
+    <text x="907" y="111.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">solid = module</text>
+    <text x="907" y="124" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">dashed = external</text>
+    <text x="907" y="136.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">shaded = grouping</text>
+    <text x="907" y="149" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">blue = render path</text>
+    <text x="907" y="161.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">arrows = edges</text>
+    <rect x="32" y="240" width="190" height="92" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="127" y="258" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#161f2b">src/assets-dir.js</text>
+    <text x="127" y="272.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">locates the pack:</text>
+    <text x="127" y="285" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">1 LPC_ASSETS_DIR</text>
+    <text x="127" y="297.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">2 sibling clone</text>
+    <text x="127" y="310" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">3 home dir</text>
+    <text x="127" y="322.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">first hit wins</text>
+    <rect x="32" y="372" width="190" height="92" rx="8" fill="#f5efe2" stroke="#93835f" stroke-width="1.2" stroke-dasharray="6 4"/>
+    <text x="127" y="390" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161f2b">external asset pack</text>
+    <text x="127" y="403.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">(never vendored)</text>
+    <text x="127" y="416" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">sheet_definitions/</text>
+    <text x="127" y="428.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">palette_definitions/</text>
+    <text x="127" y="441" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">spritesheets/</text>
+    <text x="127" y="453.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">read-only input</text>
+    <rect x="256" y="240" width="712" height="250" rx="10" fill="#e4eee7" stroke="#7fa190" stroke-width="1.2"/>
+    <text x="612" y="258" text-anchor="middle" font-size="8.8" font-weight="bold" fill="#161f2b">src/engine/ — import edges run downward · no MCP shapes, no filesystem</text>
+    <rect x="270" y="276" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="349" y="294" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">catalog.js</text>
+    <text x="349" y="308.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">item + palette index</text>
+    <rect x="444" y="276" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="523" y="294" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">selection.js</text>
+    <text x="523" y="308.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">input → selections map</text>
+    <rect x="618" y="276" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="697" y="294" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">sheet.js</text>
+    <text x="697" y="308.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">renderCharacter</text>
+    <text x="697" y="321" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">crop · extract · layout</text>
+    <rect x="792" y="276" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="871" y="294" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">credits.js</text>
+    <text x="871" y="308.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">attribution CSV + TXT</text>
+    <text x="871" y="321" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">used by character.js</text>
+    <rect x="270" y="398" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="349" y="416" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">constants.js</text>
+    <text x="349" y="430.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">geometry · row blocks</text>
+    <text x="349" y="443" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">frame counts · aliases</text>
+    <rect x="444" y="398" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="523" y="416" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">recolor.js</text>
+    <text x="523" y="430.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">palette resolve</text>
+    <text x="523" y="443" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">CPU index-paired tint</text>
+    <rect x="618" y="398" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="697" y="416" text-anchor="middle" font-size="9.4" font-weight="bold" fill="#161f2b">custom-animations.js</text>
+    <text x="697" y="428.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">64 / 128 / 192 px blocks</text>
+    <rect x="270" y="528" width="158" height="52" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="349" y="546" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">@napi-rs/canvas</text>
+    <text x="349" y="560.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">the only pixel backend</text>
+    <rect x="500" y="512" width="468" height="84" rx="10" fill="#e2e8f0" stroke="#95a3b6" stroke-width="1.2"/>
+    <text x="734" y="530" text-anchor="middle" font-size="8.6" font-weight="bold" fill="#161f2b">written beside the output path (default &lt;repo&gt;/output/)</text>
+    <rect x="514" y="540" width="138" height="48" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="583" y="558" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">&lt;name&gt;.png</text>
+    <text x="583" y="572.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">the spritesheet</text>
+    <rect x="664" y="540" width="146" height="48" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="737" y="558" text-anchor="middle" font-size="9.2" font-weight="bold" fill="#161f2b">&lt;name&gt;-credits.csv</text>
+    <text x="737" y="570.5" text-anchor="middle" font-size="9.2" font-weight="bold" fill="#161f2b">&lt;name&gt;-credits.txt</text>
+    <text x="737" y="583" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">attribution on by default</text>
+    <rect x="822" y="540" width="134" height="48" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="889" y="558" text-anchor="middle" font-size="9.6" font-weight="bold" fill="#161f2b">&lt;name&gt;-</text>
+    <text x="889" y="571.5" text-anchor="middle" font-size="9.6" font-weight="bold" fill="#161f2b">character.json</text>
+    <text x="889" y="585" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">opt-in</text>
+    <rect x="32" y="626" width="300" height="64" rx="7" fill="#eef1f5" stroke="#b6c1cf" stroke-width="1.2"/>
+    <text x="42" y="644" text-anchor="start" font-size="9.5" font-weight="bold" fill="#161f2b">Protocol</text>
+    <text x="42" y="657.5" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">stdout carries JSON-RPC only; humans read console.error.</text>
+    <text x="42" y="670" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">A missing pack fails at startup: stderr block, exit 1.</text>
+    <text x="42" y="682.5" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">Tool errors are payloads, never a rejected handler.</text>
+    <rect x="344" y="626" width="310" height="64" rx="7" fill="#eef1f5" stroke="#b6c1cf" stroke-width="1.2"/>
+    <text x="354" y="644" text-anchor="start" font-size="9.5" font-weight="bold" fill="#161f2b">Licensing</text>
+    <text x="354" y="657.5" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">Assets (OGA-BY, CC-BY, CC-BY-SA, GPL) stay in the external</text>
+    <text x="354" y="670" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">clone; this code is GPL-3.0-only. Every render ships its</text>
+    <text x="354" y="682.5" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">credits files: attribution is a product feature.</text>
+    <rect x="666" y="626" width="302" height="64" rx="7" fill="#eef1f5" stroke="#b6c1cf" stroke-width="1.2"/>
+    <text x="676" y="644" text-anchor="start" font-size="9.5" font-weight="bold" fill="#161f2b">Universal sheet layout</text>
+    <text x="676" y="657.5" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">13 columns × 54 rows of 64 px frames = 832 × 3456,</text>
+    <text x="676" y="670" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">15 canonical row blocks behind 17 config keys.</text>
+    <text x="676" y="682.5" text-anchor="start" font-size="8.4" font-weight="normal" fill="#46566b">Custom blocks append below row 54 and may widen it.</text>
+  </g>
+  <g id="edges">
+    <path d="M222 130 L266 138" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <text x="244" y="122" text-anchor="middle" font-size="8.4" fill="#46566b">JSON-RPC</text>
+    <path d="M266 178 L222 178" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <text x="244" y="196" text-anchor="middle" font-size="8.4" fill="#46566b">result</text>
+    <path d="M572 154 L616 141" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M266 214 L242 214 L242 286 L222 286" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M127 332 L127 372" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M222 418 L256 418" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M709 202 L709 240" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M349 330 L337 398" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M515 330 L353 398" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M537 330 L511 398" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M645 330 L369 398" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M680 330 L535 398" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M697 330 L697 398" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <path d="M349 490 L349 528" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+    <text x="402" y="508" text-anchor="middle" font-size="8.4" fill="#46566b">drawImage</text>
+    <path d="M428 554 L500 554" fill="none" stroke="#4a5a70" stroke-width="1.4" marker-end="url(#arrowhead)"/>
+  </g>
+  <text x="32" y="708" font-size="8.2" fill="#46566b">Regenerate with npm run diagrams (scripts/make-architecture-svg.mjs); the layout is asserted by that script, so edit the tables there rather than this file.</text>
+</svg>

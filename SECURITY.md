@@ -17,6 +17,9 @@ public. Please include the tool call arguments and server stderr output.
 
 - Treat `output_path` as a filesystem-write capability: only expose this
   server to clients you trust with write access to the configured directories.
+  A relative `output_path` resolves against the **server's** working directory, not the client's.
 - Generated sheets inherit the upstream assets' licenses (OGA-BY / CC-BY-SA /
-  GPL mix). The server writes `credits.csv`/`credits.txt` next to every sheet —
+  GPL mix). The server writes `<name>-credits.csv` and `<name>-credits.txt` next to every sheet —
   keep them when redistributing renders.
+- The server reads exactly one environment variable (`LPC_ASSETS_DIR`) and makes no network calls;
+  nothing here accepts a URL, a remote asset source, or a template.

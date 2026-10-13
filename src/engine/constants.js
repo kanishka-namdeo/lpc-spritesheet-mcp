@@ -114,6 +114,26 @@ export function resolveAnimationName(name) {
   return name === "combat_idle" ? "combat" : name;
 }
 
+// Row names that are served by another row block's frames instead of owning one.
+// `watering` has no folder of its own; `1h_slash` reuses the backslash row with a
+// different cycle. `combat` and `1h_backslash`/`1h_halfslash` DO own their rows —
+// only their on-disk folder name differs, which ANIMATIONS.folderName records.
+export const ROW_BLOCK_ALIASES = { watering: "thrust", "1h_slash": "backslash" };
+
+// Table key that holds a row name's frame count and y offset: the folder remap for
+// `combat`/`1h_*`, the alias target for `watering`/`1h_slash`, otherwise itself.
+export function rowBlockFolder(name) {
+  return ROW_BLOCK_ALIASES[name] ?? ANIMATIONS.find((a) => a.value === name)?.folderName ?? name;
+}
+
+export function rowBlockFrames(name) {
+  return ANIMATION_FRAME_COUNTS[rowBlockFolder(name)];
+}
+
+export function rowBlockYOffset(name) {
+  return ANIMATION_OFFSETS[name] ?? ANIMATION_OFFSETS[rowBlockFolder(name)] ?? null;
+}
+
 // Which direction each single-row block faces (hurt ships only the down-facing
 // row, climb only the up-facing row).
 export const SINGLE_ROW_DIRECTION = {

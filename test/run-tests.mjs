@@ -9,10 +9,14 @@ import { SpriteEngine } from "../src/engine/sheet.js";
 import { normalizeSelections, SelectionError } from "../src/engine/selection.js";
 import { getAllCredits, creditsToCsv } from "../src/engine/credits.js";
 import { ANIMATION_OFFSETS } from "../src/engine/constants.js";
+import { findAssetsDir } from "../src/assets-dir.js";
 
-const ASSETS_DIR = process.env.LPC_ASSETS_DIR
-  ? path.resolve(process.env.LPC_ASSETS_DIR)
-  : path.resolve(import.meta.dirname, "..", "..", "lpc-generator-src");
+const ASSETS_DIR = findAssetsDir();
+if (!ASSETS_DIR) {
+  throw new Error(
+    "No LPC asset pack found. Run `npm run setup-assets`, or set LPC_ASSETS_DIR to a clone of the pack.",
+  );
+}
 
 const OUT_DIR = path.join(import.meta.dirname, "out");
 fs.mkdirSync(OUT_DIR, { recursive: true });

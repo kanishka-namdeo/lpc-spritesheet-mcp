@@ -19,7 +19,8 @@
   "type": "module",
   "main": "./src/index.js",
   "bin": {
-    "lpc-spritesheet-mcp": "./src/index.js"
+    "lpc-spritesheet-mcp": "./src/index.js",
+    "lpc-spritesheet-setup": "./scripts/setup-assets.mjs"
   },
   "files": [
     "src",
@@ -36,7 +37,10 @@
     "start": "node src/index.js",
     "setup-assets": "node scripts/setup-assets.mjs",
     "showcase": "node scripts/make-showcase.mjs",
-    "test": "node --test \"test/*.mjs\""
+    "diagrams": "node scripts/make-architecture-svg.mjs",
+    "demo": "node scripts/make-demo-gif.mjs",
+    "assets": "npm run diagrams && npm run showcase && npm run demo",
+    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/smoke-canvas.mjs"
   },
   "repository": {
     "type": "git",
@@ -50,5 +54,8 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@napi-rs/canvas": "^0.1.80",
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "gifenc": "^1.0.3"
   }
 }

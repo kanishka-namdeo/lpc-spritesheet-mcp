@@ -1,6 +1,13 @@
 # Capability Inventory — Universal LPC Spritesheet Character Generator
 
-Repo root: `C:\Users\kanis\.zcode\workspace\default\lpc-generator-src`
+> **This file describes UPSTREAM, not this server.** It is a one-time survey of the
+> Universal-LPC-Spritesheet-Character-Generator asset pack and web app, taken before this port
+> existed. No script here generates it and no command refreshes it, so its counts and `path:line`
+> citations can predate the current pack — verify against a live clone before relying on one.
+> For what *this* server does, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+
+Survey target: a clone of `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator`
+(anywhere `LPC_ASSETS_DIR` points, or the sibling `../lpc-generator-src` dev-checkout convention).
 443 MB on disk incl. `.git` (323 MB without; `spritesheets/` = 312 MB / 88,114 PNGs).
 
 **Architecture note.** This clone is NOT the legacy `index.html + scripts.js + universal.json` app. It is a **Vite + Mithril SPA in TypeScript** (`sources/`, 71 TS files). There is no top-level `universal.json`, no `palettes.js`, no `licenses/` dir. The "universal" sheet layout now lives in `tools/layout/universal.json` (13×21 grid) and `tools/layout/universal-expanded.json` (13×54 grid) — lpctools layout files. Sources of truth:
@@ -83,8 +90,8 @@ Materials and their named palettes (meta files give `label`, `default` version, 
 
 | Material (`palette_definitions/<m>/`) | Label | Default version / base | Palette color keys |
 |---|---|---|---|
-| `body` | "Skintone" | ulpc / `light` | **ulpc (21):** light, amber, olive, taupe, bronze, brown, black, blue, bright_green, dark_green, fur_black, fur_brown, fur_copper, fur_gold, fur_grey, fur_tan, fur_white, green, lavender, pale_green, zombie, zombie_green. **lpcr (9):** ivory, porcelain, peach, tan, tawny, honey, bronze, brown, coffee. |
-| `hair` | "Hair" | ulpc / `orange` | **ulpc (25):** orange, ash, platinum, white, gray, blonde, sandy, strawberry, gold, ginger, carrot, redhead, red, light_brown, chestnut, dark_brown, dark_gray, black, raven, rose, pink, purple, violet, navy, blue, green. **lpcr (20):** ash_brown, black, blonde, blue, brown, charcoal, chestnut, gray, green, orange, pink, platinum, purple, raven, red, ruby, silver, teal, violet, white. |
+| `body` | "Skintone" | ulpc / `light` | **ulpc (22):** light, amber, olive, taupe, bronze, brown, black, blue, bright_green, dark_green, fur_black, fur_brown, fur_copper, fur_gold, fur_grey, fur_tan, fur_white, green, lavender, pale_green, zombie, zombie_green. **lpcr (9):** ivory, porcelain, peach, tan, tawny, honey, bronze, brown, coffee. |
+| `hair` | "Hair" | ulpc / `orange` | **ulpc (26):** orange, ash, platinum, white, gray, blonde, sandy, strawberry, gold, ginger, carrot, redhead, red, light_brown, chestnut, dark_brown, dark_gray, black, raven, rose, pink, purple, violet, navy, blue, green. **lpcr (20):** ash_brown, black, blonde, blue, brown, charcoal, chestnut, gray, green, orange, pink, platinum, purple, raven, red, ruby, silver, teal, violet, white. |
 | `eye` | "Eyes" | ulpc / `blue` | **ulpc (8):** blue, green, purple, red, orange, yellow, brown, gray. **lpcr (7):** black, blue, brown, gray, green, hazel, purple. (3-color palettes, not interchangeable with other materials.) |
 | `cloth` | "General" | ulpc / `white` | **ulpc (24):** brown, leather, walnut, yellow, tan, orange, rose, maroon, red, pink, lavender, purple, blue, navy, teal, bluegray, forest, green, white, sky, slate, gray, black, charcoal. |
 | `metal` | "Metal" | ulpc / `steel` | **ulpc (8):** ceramic, brass, copper, bronze, iron, steel, silver, gold. **lpcr (7):** brass, copper, bronze, iron, steel, silver, gold. |
@@ -124,9 +131,9 @@ Full universal sheet canvas: **832 × 3456 px = 13 columns × 54 rows of 64 px f
 
 Row layout cross-check: `tools/layout/universal-expanded.json` (lpctools layout, 13×54) places exactly: cast 7 f (rows 0–3), thrust 8 f (4–7), walk 9 f (8–11), slash 6 f (12–15), shoot 13 f (16–19), hurt 6 f south-only (20), climb 6 f north-only (21), idle 2 f (22–25), jump 5 f (26–29), sit 3 f (30–33), emote 3 f (34–37), run 8 f (38–41), combat_idle 2 f (42–45), backslash 13 f (46–49), halfslash 6 f (50–53). The classic **`tools/layout/universal.json` is 13×21** (rows 0–20: cast/thrust/walk/slash/shoot/hurt only) — "get the original universal sheets" per `tools/REBUILD.md`.
 
-### 3.2 Custom animation definitions (`sources/custom-animations.ts`, 15 defs)
+### 3.2 Custom animation definitions (`sources/custom-animations.ts`, 14 defs)
 Appended below y=3456 on the canvas; items declare them in `animations` and their layers via `custom_animation`:
-`wheelchair` (64 px, sit-frames×2), `tool_rod` (128 px, 13-frame thrust retiming), `tool_axe` / `tool_hammer` (128 px, 10-frame, `sourceSingleAnimation`), `tool_whip`, `whip_oversize` (192 px, 8-frame slash retime), `slash_128` (128 px), `backslash_128` (128 px, 13 frames), `halfslash_128` (128 px), `thrust_128` (128 px, 8 frames), `walk_128` (128 px, 9 frames, `skipFirstFrameInPreview`), `slash_oversize` / `thrust_oversize` / `slash_reverse_oversize` (192 px). Per-animation PNG width can therefore be 832 (64 px) up to 2496 px (13×192).
+`wheelchair` (64 px, sit-frames×2), `tool_rod` (128 px, 13-frame thrust retiming), `tool_axe` (128 px, 10 columns) and `tool_hammer` (128 px, 9 columns), both `sourceSingleAnimation`, `tool_whip`, `whip_oversize` (192 px, 8-frame slash retime), `slash_128` (128 px), `backslash_128` (128 px, 13 frames), `halfslash_128` (128 px), `thrust_128` (128 px, 8 frames), `walk_128` (128 px, 9 frames, `skipFirstFrameInPreview`), `slash_oversize` / `thrust_oversize` / `slash_reverse_oversize` (192 px). Per-animation PNG width can therefore be 832 (64 px) up to 1664 px (13 columns × 128: `tool_rod`, `backslash_128`) — the 192 px blocks are all 8 columns or fewer.
 
 ### 3.3 Per-item / per-body-type availability
 Items list supported animations in `animations`; renderer row-mapping special cases (`sources/canvas/renderer.ts` ~430–455): `thrust` row renders for items with `thrust` OR `watering`; `combat_idle` row for `combat`; `backslash` row for `1h_slash` OR `1h_backslash`; `halfslash` row for `1h_halfslash`. Coverage across 657 items (explicit or default): spellcast 612, thrust 617, walk 646, slash 612, shoot 615, hurt 619, watering 578, climb 467, idle 536, jump 491, sit 492, emote 498, run 489, combat 470, 1h_slash 469, 1h_backslash 469, 1h_halfslash 469. On-disk animation-file counts confirm: `walk.png` 919, `thrust.png` 881, `slash.png`/`spellcast.png` 879, `shoot.png` 877, `idle.png` 841, `jump.png` 826, `hurt.png` 823, `sit.png` 776, `emote.png` 775, `run.png` 756, `backslash.png` 743, `combat_idle.png` 716, `halfslash.png` 714, `climb.png` 560.

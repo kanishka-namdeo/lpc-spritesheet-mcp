@@ -5,14 +5,24 @@ import path from "node:path";
 import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { findAssetsDir } from "../src/assets-dir.js";
 
 const SERVER_ENTRY = path.resolve(import.meta.dirname, "..", "src", "index.js");
+const ASSETS_DIR = findAssetsDir();
+if (!ASSETS_DIR) {
+  throw new Error(
+    "No LPC asset pack found. Run `npm run setup-assets`, or set LPC_ASSETS_DIR to a clone of the pack.",
+  );
+}
 
 test.before(async () => {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER_ENTRY],
     stderr: "pipe",
+    // StdioClientTransport inherits only a safe env allowlist, so the pack
+    // location has to be handed to the child explicitly or it exits at startup.
+    env: { LPC_ASSETS_DIR: ASSETS_DIR },
   });
   transport.stderr?.on("data", () => {}); // drain so the child never blocks
   globalThis.mcpClient = new Client({ name: "e2e-test", version: "1.0.0" });
@@ -218,4 +228,66 @@ test("character JSON merges with args (regression: silent override loss)", async
   });
   assert.equal(bad.isError, true);
   assert.match(JSON.parse(bad.content[0].text).error, /Unknown bodyType "potato"/);
+});
+
+test("get_preview takes the combat_idle alias, like get_animation does", async () => {
+  const res = await callTool("get_preview", {
+    animation: "combat_idle",
+    output_path: path.join(import.meta.dirname, "out", "mcp-combat-idle-preview.png"),
+  });
+  assert.equal(res.isError, undefined, JSON.stringify(res));
+  const payload = JSON.parse(res.content[0].text);
+  assert.equal(payload.animation, "combat_idle");
+  assert.equal(payload.image.width, 3 * 64); // cycle [0,0,1] -> three slots, two distinct frames
+  assert.equal(payload.image.height, 64);
+});
+
+test("get_animation of a custom block reports that block's frame size", async () => {
+  const res = await callTool("get_animation", {
+    selections: { weapon: "Katana" },
+    animation: "slash_128",
+    output_path: path.join(import.meta.dirname, "out", "mcp-slash-128.png"),
+  });
+  assert.equal(res.isError, undefined, JSON.stringify(res));
+  const payload = JSON.parse(res.content[0].text);
+  assert.equal(payload.layout.frameSize, 128);
+  assert.equal(payload.image.frameSize, 128, "image.frameSize must match the cropped block");
+});
+
+test("list_animations gives every standard row a frame count and an offset", async () => {
+  const res = await callTool("list_animations");
+  const payload = JSON.parse(res.content[0].text);
+  for (const [name, anim] of Object.entries(payload.standard)) {
+    assert.ok(Number.isInteger(anim.frames), `${name}: frames is ${anim.frames}`);
+    assert.ok(Number.isInteger(anim.yOffset), `${name}: yOffset is ${anim.yOffset}`);
+  }
+  // the two single-row blocks are the only ones with one facing
+  const single = Object.values(payload.standard).filter((a) => a.directionRows === 1);
+  assert.deepEqual(single.map((a) => a.label).sort(), ["climb", "hurt"]);
+});
+
+test("the README example renders exactly what the README promises", async () => {
+  const res = await callTool("get_preview", {
+    bodyType: "female",
+    selections: { hair: "Bangs", clothes: "Longsleeve", weapon: "Recurve", hat: "Hood" },
+    colors: { body: "amber", hair: "red", clothes: "teal", eyes: "green" },
+    animation: "walk",
+    direction: "down",
+    scale: 3,
+    output_path: path.join(import.meta.dirname, "out", "mcp-readme-example.png"),
+  });
+  assert.equal(res.isError, undefined, JSON.stringify(res));
+  const payload = JSON.parse(res.content[0].text);
+  assert.deepEqual(payload.image, { width: 1536, height: 192, frameSize: 192 });
+  assert.deepEqual(payload.frames, [1, 2, 3, 4, 5, 6, 7, 8]);
+  // the README prints this warning verbatim: the bow claims a walk cycle the pack does not ship
+  assert.equal(payload.warnings.length, 1, JSON.stringify(payload.warnings));
+  assert.match(
+    payload.warnings[0],
+    /^weapon_ranged_bow_recurve: no sprite for row\(s\) walk, custom:walk_128/,
+  );
+  assert.equal(payload.credits.entries, 7);
+  assert.equal(payload.selections.clothes, "torso_clothes_longsleeve (teal)");
+  assert.equal(payload.selections.weapon, "weapon_ranged_bow_recurve [light]");
+  assert.equal(payload.selections.hat, "hat_hood_cloth (brown)"); // colors.clothes does not retint a hat
 });

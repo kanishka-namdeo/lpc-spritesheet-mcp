@@ -1,0 +1,25 @@
+# Blank issues are disabled on purpose: this server's failures are only
+# diagnosable with the tool payload and the server stderr, and a free-text
+# issue rarely contains either. Pick one of the three forms instead.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Install the asset pack (required before the server starts)
+    url: https://github.com/kanishka-namdeo/lpc-spritesheet-mcp#readme
+    about: >-
+      The server ships no art and reads a local ~350MB clone of the upstream
+      asset pack. README.md documents `npm run setup-assets`, the
+      `LPC_ASSETS_DIR` override, and the discovery order.
+
+  - name: Upstream art, animation or asset-pack questions
+    url: https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
+    about: >-
+      Missing sprites, animation coverage and art licensing belong upstream
+      (LiberatedPixelCup). This repo only renders the pack it is given, so
+      empty rows caused by upstream asset gaps are fixed there, not here.
+
+  - name: Security report
+    url: https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/blob/main/SECURITY.md
+    about: >-
+      Read SECURITY.md first. It states the offline/no-network scope and how to
+      report something you would rather not discuss in public.

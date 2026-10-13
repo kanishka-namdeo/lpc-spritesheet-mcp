@@ -7,9 +7,13 @@ touches the network; everything here is plain ESM with no build step.
 
 ## Ownership
 
-- `index.js` — server bootstrap, asset-pack discovery, tool declarations, dispatch, response envelope.
+- `index.js` — server bootstrap, tool declarations, dispatch, response envelope.
 - `character.js` — the request pipeline shared by the three render tools: input normalization,
   render, save, result payload.
+- `assets-dir.js` — the one implementation of the asset-pack discovery order and the "is this a
+  valid pack" probe. The server, `test/` and `scripts/` all import it, so a setup that satisfies one
+  cannot silently fail another. Pure lookups: it never logs, throws, or exits — reporting and
+  `process.exit(1)` stay in `resolveAssetsDir` in `index.js`.
 - `engine/` — rendering itself. Read `src/engine/AGENTS.md` before touching it.
 
 ## Local Contracts

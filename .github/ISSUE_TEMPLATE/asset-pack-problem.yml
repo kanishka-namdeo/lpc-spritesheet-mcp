@@ -1,0 +1,165 @@
+name: Asset pack problem
+description: 'The server exits with "asset pack is not installed", or a render comes back with empty rows / missing-animation warnings.'
+title: "[assets]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This server ships **no art**. It reads a local clone (~350MB) of
+        `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator`, and a
+        valid pack is a directory containing BOTH `sheet_definitions/` and
+        `spritesheets/`. It looks in three places, in this order:
+        `$LPC_ASSETS_DIR`, the sibling `lpc-generator-src` next to this package,
+        then `~/.lpc-spritesheet/lpc-generator-src` (where `npm run setup-assets`
+        clones).
+
+
+        **Read this before filing:** an empty animation row or a
+        "no sprite for this row" warning is very often a KNOWN UPSTREAM ASSET
+        GAP, not a bug in this server. The engine degrades on purpose — it paints
+        what exists and reports the rest in `warnings`. Example: the `child` body
+        type ships art for only `hurt`, `idle`, `jump`, `sit`, `slash` and `walk`,
+        so the other rows of a child sheet come back empty **by design**
+        (see `docs/ARCHITECTURE.md`). Those belong upstream. Use this form when
+        the pack is not being found at all, when it is found but the render is
+        wrong compared with the upstream app, or when you cannot tell which case
+        you are in.
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: What actually happens
+      options:
+        - "Server exits immediately with `asset pack is not installed`"
+        - "Server starts, but the sheet has empty rows"
+        - "Server starts, but the tool returns `warnings` about missing sprites"
+        - "`get_animation` / `get_preview` returns fewer frames than expected"
+        - "Render differs from the upstream web app for the same character"
+        - "Other (describe below)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: stderr
+    attributes:
+      label: The exact stderr block from the server
+      description: >-
+        Copy it verbatim, including the `Searched: <candidate paths>` line — that
+        single line tells us which of the three locations were probed and why
+        each one missed. Startup lines look like
+        `[lpc-spritesheet] loading catalog from ...` and
+        `[lpc-spritesheet] ready: <n> items, <n> groups`.
+      render: text
+      value: |
+        ```text
+        [lpc-spritesheet] ...
+        [lpc-spritesheet] Searched:
+        ```
+      placeholder: Paste the whole block, not just the last line.
+    validations:
+      required: true
+
+  - type: textarea
+    id: listing
+    attributes:
+      label: Directory listing proving the pack is valid
+      description: >-
+        Output of `ls` (or `dir` on Windows cmd) for the directory you expect to
+        be the pack. It must show `sheet_definitions/` AND `spritesheets/`; a
+        clone of *this* repo, a half-finished `git clone`, or the pack's parent
+        folder are the usual failures.
+      render: text
+      value: |
+        ```text
+        # ls <the directory you believe is the pack>
+        ```
+    validations:
+      required: true
+
+  - type: input
+    id: lpc-assets-dir
+    attributes:
+      label: LPC_ASSETS_DIR
+      description: >-
+        The exact value as your MCP client passes it (write `unset` if you rely
+        on the sibling clone or on `~/.lpc-spritesheet`). Include the path form:
+        Windows backslashes, `~`, and relative paths behave differently between
+        the server's cwd and the client's.
+      placeholder: "D:/assets/lpc-generator-src  (or: unset)"
+    validations:
+      required: true
+      max_length: 300
+
+  - type: textarea
+    id: warnings
+    attributes:
+      label: The `warnings` array from the tool payload
+      description: >-
+        Paste the full JSON result, or at least `warnings` plus the echoed
+        `selections` and `bodyType`. One aggregated message per item is the
+        normal shape; whether it names an item or a row is the distinction that
+        matters here.
+      render: json
+      value: |
+        ```json
+        "warnings": []
+        ```
+    validations:
+      required: true
+
+  - type: dropdown
+    id: acquired
+    attributes:
+      label: How was the pack acquired?
+      description: >-
+        The clone is unpinned (`--depth 1` at the pack's default branch), so the
+        revision you hold may differ from another user's.
+      options:
+        - "`npm run setup-assets`"
+        - "Manual `git clone` of the upstream pack"
+        - "Copied or symlinked from another location"
+        - "Unsure"
+    validations:
+      required: true
+
+  - type: input
+    id: pack-revision
+    attributes:
+      label: Pack revision, if it is a git clone
+      description: >-
+        Output of `git -C <pack directory> rev-parse --short HEAD`. Nothing in
+        this repo records which asset revision was fetched, so this is the only
+        way to compare packs.
+      placeholder: "e.g. 3f9c2a1 (or: not a git clone)"
+    validations:
+      required: false
+      max_length: 80
+
+  - type: input
+    id: body-type
+    attributes:
+      label: Body type and item(s) involved
+      description: >-
+        One of male, female, teen, child, muscular, pregnant — plus the `itemId`
+        you selected. Row coverage is per body type and per item, which is what
+        decides whether an empty row is a gap upstream or a bug here.
+      placeholder: "child + weapon:rapier"
+    validations:
+      required: false
+      max_length: 120
+
+  - type: checkboxes
+    id: cross-checks
+    attributes:
+      label: Things that rule out the easy causes
+      options:
+        - label: "The pack directory contains both `sheet_definitions/` and `spritesheets/`"
+          required: false
+        - label: "I ran `npm run setup-assets` and it reported the target it used"
+          required: false
+        - label: "The same character renders differently in the upstream web app"
+          required: false
+        - label: "`list_items` / `list_animations` return the item or animation I expected"
+          required: false

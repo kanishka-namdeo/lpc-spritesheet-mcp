@@ -10,9 +10,6 @@
 //   generate_spritesheet — render the full universal sheet PNG
 //   get_animation     — render + crop one animation (standard or custom)
 //   get_preview       — render + crop a playback strip for one direction
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -20,6 +17,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createCanvas } from "@napi-rs/canvas";
+import { assetCandidates, hasAssets } from "./assets-dir.js";
 import { Catalog } from "./engine/catalog.js";
 import { SpriteEngine } from "./engine/sheet.js";
 import {
@@ -27,38 +25,25 @@ import {
   DIRECTIONS,
   FRAME_SIZE,
   ANIMATION_CONFIGS,
-  ANIMATION_FRAME_COUNTS,
-  ANIMATION_OFFSETS,
+  ROW_BLOCK_ALIASES,
   SHEET_WIDTH,
-  SHEET_HEIGHT,
   SINGLE_ROW_DIRECTION,
+  resolveAnimationName,
+  rowBlockFrames,
+  rowBlockYOffset,
 } from "./engine/constants.js";
 import { customAnimations, customAnimationBase } from "./engine/custom-animations.js";
-import {
-  buildSelections,
-  renderAndSave,
-  errorPayload,
-  unknownArgWarnings,
-  CharacterRequestError,
-} from "./character.js";
-import { SelectionError } from "./engine/selection.js";
+import { renderAndSave, errorPayload, unknownArgWarnings, CharacterRequestError } from "./character.js";
 
 /**
- * Locate the Universal-LPC-Spritesheet-Character-Generator asset clone:
- * 1. $LPC_ASSETS_DIR
- * 2. sibling of this package (dev checkout: <workspace>/lpc-generator-src)
- * 3. ~/.lpc-spritesheet/lpc-generator-src (where `npm run setup-assets` clones)
+ * Locate the Universal-LPC-Spritesheet-Character-Generator asset clone
+ * (order lives in `src/assets-dir.js`). Missing assets fail here, on stderr,
+ * before the transport connects — the phrase below is asserted by CI.
  */
 function resolveAssetsDir() {
-  const candidates = [];
-  if (process.env.LPC_ASSETS_DIR) candidates.push(path.resolve(process.env.LPC_ASSETS_DIR));
-  candidates.push(path.resolve(import.meta.dirname, "..", "..", "lpc-generator-src"));
-  candidates.push(path.join(os.homedir(), ".lpc-spritesheet", "lpc-generator-src"));
-  for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, "sheet_definitions")) && fs.existsSync(path.join(dir, "spritesheets"))) {
-      return dir;
-    }
-  }
+  const candidates = assetCandidates();
+  const found = candidates.find(hasAssets);
+  if (found) return found;
   console.error(
     [
       "[lpc-spritesheet] ERROR: the LPC asset pack is not installed. This server does not",
@@ -221,25 +206,20 @@ function listPalettes(args) {
 function listAnimations() {
   const standard = {};
   for (const [name, cfg] of Object.entries(ANIMATION_CONFIGS)) {
-    const folder = ANIMATIONS_FOLDER.get(name);
+    const alias = ROW_BLOCK_ALIASES[name];
     standard[name] = {
       label: name,
       row: cfg.row,
       directionRows: cfg.num,
       directions: cfg.num === 1 ? [SINGLE_ROW_DIRECTION[name] ?? DIRECTIONS[0]] : DIRECTIONS,
-      frames: ANIMATION_FRAME_COUNTS[folder ?? name] ?? undefined,
+      frames: rowBlockFrames(name),
       cycle: cfg.cycle,
-      yOffset: ANIMATION_OFFSETS[name] ?? ANIMATION_OFFSETS[folder] ?? null,
-      notes:
-        name === "watering"
-          ? "alias: shares the thrust rows"
-          : name === "combat"
-            ? "canonical name of the combat_idle row (get_animation accepts both)"
-            : name === "1h_slash" || name === "1h_backslash"
-              ? "alias: shares the backslash row"
-              : name === "1h_halfslash"
-                ? "alias: shares the halfslash row"
-                : undefined,
+      yOffset: rowBlockYOffset(name),
+      notes: alias
+        ? `alias: shares the ${alias} row block`
+        : name === "combat"
+          ? "canonical name of the combat_idle row block (get_animation and get_preview also accept combat_idle)"
+          : undefined,
     };
   }
   const itemsByCustom = {};
@@ -271,15 +251,6 @@ function listAnimations() {
       "Custom blocks are appended below the standard 54-row sheet and can also widen the canvas (128/192px frames). They appear in a render only when the character includes an item from usedBy.",
   };
 }
-
-const ANIMATIONS_FOLDER = new Map(
-  [
-    ["combat", "combat_idle"],
-    ["1h_slash", "backslash"],
-    ["1h_backslash", "backslash"],
-    ["1h_halfslash", "halfslash"],
-  ],
-);
 
 // ---------------------------------------------------------------------------
 // MCP server
@@ -430,7 +401,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!animation || typeof animation !== "string") {
           throw new CharacterRequestError("animation is required (a name from list_animations).");
         }
-        const isCustom = !ANIMATION_CONFIGS[animation] && !ANIMATION_CONFIGS[animation === "combat_idle" ? "combat" : animation];
+        const isCustom = !ANIMATION_CONFIGS[resolveAnimationName(animation)];
         const preWarnings = unknownArgWarnings(args, [...CHAR_ARG_KEYS, "animation"]);
         return jsonResult(
           await renderAndSave(engine, args, {
@@ -467,12 +438,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     columns: block.columns,
                     yOffsetInFullSheet: block.yOffset,
                   },
-                  extra: { animation },
+                  extra: { animation, frameSize: block.frameSize },
                   suffix: `-${animation}`,
                 };
               }
-              const animKey = animation === "combat_idle" ? "combat" : animation;
-              const folder = ANIMATIONS_FOLDER.get(animKey);
+              const animKey = resolveAnimationName(animation);
               const config = ANIMATION_CONFIGS[animKey];
               const cropped = engine.extractAnimation(canvas, animation);
               return {
@@ -484,9 +454,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                   height: config.num * FRAME_SIZE,
                   row: config.row,
                   rows: config.num,
-                  frames: ANIMATION_FRAME_COUNTS[folder ?? animKey],
+                  frames: rowBlockFrames(animKey),
                   cycle: config.cycle,
-                  yOffsetInFullSheet: ANIMATION_OFFSETS[folder ?? animKey],
+                  yOffsetInFullSheet: rowBlockYOffset(animKey),
                 },
                 extra: { animation },
                 suffix: `-${animation}`,
@@ -497,7 +467,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "get_preview": {
         const animation = args.animation ?? "walk";
-        if (typeof animation !== "string" || !ANIMATION_CONFIGS[animation]) {
+        if (typeof animation !== "string" || !ANIMATION_CONFIGS[resolveAnimationName(animation)]) {
           throw new CharacterRequestError(
             `get_preview takes a standard animation (got "${animation}"). For custom animations use get_animation. Standard: ${Object.keys(ANIMATION_CONFIGS).join(", ")}.`,
           );

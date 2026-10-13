@@ -6,13 +6,16 @@ import { createCanvas, loadImage } from "@napi-rs/canvas";
 import {
   ANIMATION_OFFSETS,
   ANIMATION_CONFIGS,
-  ANIMATION_FRAME_COUNTS,
   ANIMATIONS,
   DIRECTIONS,
   FRAME_SIZE,
+  ROW_BLOCK_ALIASES,
   SHEET_WIDTH,
   SHEET_HEIGHT,
+  STANDARD_ANIMATION_FRAMES_PER_ROW,
   resolveAnimationName,
+  rowBlockFrames,
+  rowBlockYOffset,
 } from "./constants.js";
 import {
   animationRowsLayout,
@@ -304,24 +307,19 @@ export class SpriteEngine {
       width: SHEET_WIDTH,
       height: SHEET_HEIGHT,
       frameSize: FRAME_SIZE,
-      columns: 13,
+      columns: STANDARD_ANIMATION_FRAMES_PER_ROW,
       directions: DIRECTIONS,
       animations: {},
     };
     for (const [name, cfg] of Object.entries(ANIMATION_CONFIGS)) {
-      // watering shares the thrust rows without a folderName remap of its own
-      const aliasTarget =
-        ANIMATIONS.find((a) => a.value === name)?.folderName ??
-        (name === "watering" ? "thrust" : undefined);
+      const alias = ROW_BLOCK_ALIASES[name];
       standard.animations[name] = {
         row: cfg.row,
         rows: cfg.num,
-        frames: ANIMATION_FRAME_COUNTS[aliasTarget ?? name] ?? ANIMATION_FRAME_COUNTS[name],
+        frames: rowBlockFrames(name),
         cycle: cfg.cycle,
-        yOffset: ANIMATION_OFFSETS[name] ?? ANIMATION_OFFSETS[aliasTarget] ?? null,
-        ...(aliasTarget && ANIMATION_OFFSETS[name] === undefined
-          ? { note: `alias of the ${aliasTarget} row block` }
-          : {}),
+        yOffset: rowBlockYOffset(name),
+        ...(alias ? { note: `alias: shares the ${alias} row block` } : {}),
       };
     }
     const custom = [];

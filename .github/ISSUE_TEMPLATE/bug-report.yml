@@ -1,0 +1,155 @@
+name: Bug report
+description: A tool returned the wrong thing, errored, or the server did not start.
+title: "[bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This server renders from an external asset pack and returns a JSON
+        payload with `warnings`, an echoed `selections`, and the written file
+        paths. Almost every bug here is diagnosable from that payload plus the
+        server's stderr, so please paste both in full rather than summarising.
+        No art ships in this repo, so "it rendered nothing" is usually an asset
+        pack problem — use the "Asset pack problem" form for that.
+
+  - type: textarea
+    id: tool-and-args
+    attributes:
+      label: Which tool, with which arguments
+      description: >-
+        One of generate_spritesheet, get_animation, get_preview,
+        list_categories, list_items, list_palettes, list_animations — plus the
+        exact arguments object you passed.
+      value: |
+        tool:
+        arguments:
+        ```json
+        {}
+        ```
+      placeholder: >-
+        Paste the real call, e.g. {"tool":"generate_spritesheet","arguments":{"bodyType":"child","selections":{"weapon":{"itemId":"katana"}},"colors":{"cloth":"blue"}}}
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual
+      description: What you asked for, what came back, and whether it changed between runs.
+      placeholder: |
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: payload
+    attributes:
+      label: The FULL JSON payload the tool returned
+      description: >-
+        Everything in the result, including `warnings`, the `selections` echo,
+        `output`, `credits`, `rows`/`frames`/`offsets` if present, and the text
+        of any `isError: true` response. Do not trim it.
+      render: json
+      value: |
+        ```json
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: stderr
+    attributes:
+      label: Server stderr from startup (the `[lpc-spritesheet]` lines)
+      description: >-
+        The server logs the asset directory it loaded, the item/group counts,
+        and any discovery error to stderr. Attach the whole block.
+      render: text
+      value: |
+        ```text
+        ```
+    validations:
+      required: true
+
+  - type: dropdown
+    id: asset-pack-location
+    attributes:
+      label: How does the server find the asset pack here?
+      description: >-
+        The order is $LPC_ASSETS_DIR, then the sibling `lpc-generator-src` next
+        to this package, then `~/.lpc-spritesheet/lpc-generator-src`.
+      options:
+        - "`LPC_ASSETS_DIR` set in my MCP client config"
+        - "Sibling clone `../lpc-generator-src` (dev checkout convention)"
+        - "`~/.lpc-spritesheet/lpc-generator-src` from `npm run setup-assets`"
+        - "Not sure / none of these"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: setup-assets
+    attributes:
+      label: Asset pack provenance
+      options:
+        - label: "I installed the pack with `npm run setup-assets`"
+          required: false
+        - label: "I cloned `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator` myself"
+          required: false
+        - label: "The directory contains BOTH `sheet_definitions/` and `spritesheets/`"
+          required: false
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: Output of `node --version`. The package requires `>=20.11`.
+      placeholder: "v22.14.0"
+    validations:
+      required: true
+      max_length: 40
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: >-
+        OS and shell. Path handling and the native canvas binary differ between
+        Windows and Linux, so this is not a formality.
+      placeholder: "Windows 11 / Ubuntu 24.04 / macOS 15"
+    validations:
+      required: true
+      max_length: 120
+
+  - type: input
+    id: versions
+    attributes:
+      label: Server version, vs the latest published one
+      description: >-
+        The installed version (`npm view lpc-spritesheet-mcp version` gives the
+        newest published one; the `Server` info in this repo's `src/index.js`
+        gives the source version). Say if the two differ.
+      placeholder: "installed 1.1.0 / latest on npm 1.1.0"
+    validations:
+      required: true
+      max_length: 120
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        The smallest arguments object that still fails, and whether a fresh
+        character (no `selections`) also fails. A saved-character JSON export
+        from the upstream app is welcome here.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: >-
+        If you can attach the output PNG, do it — but only alongside the JSON
+        payload above, never instead of it. Renders are written beside the
+        credits files (`<name>-credits.csv`, `<name>-credits.txt`); keep those
+        if you publish the image.

@@ -1,0 +1,97 @@
+name: Feature request
+description: Ask for a new tool, argument, output, or engine behavior.
+title: "[feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This project is a headless **port** of the upstream
+        Universal-LPC-Spritesheet-Character-Generator web app, and its default is
+        to match that app's behavior exactly. Anything that diverges must be an
+        explicit, documented improvement — so please say which side of that line
+        your request sits on. The current tool surface is seven tools
+        (`generate_spritesheet`, `get_animation`, `get_preview`,
+        `list_categories`, `list_items`, `list_palettes`, `list_animations`) and
+        one env var (`LPC_ASSETS_DIR`).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: >-
+        The concrete task and where the server stops you. Workarounds you already
+        tried belong here.
+      placeholder: As an MCP client driving sheets into my engine, I want …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change is it?
+      options:
+        - "A new tool"
+        - "A new argument or option on an existing tool"
+        - "A new output or file format"
+        - "Engine behavior (layout, recolor, selection, credits)"
+        - "Packaging / installation / asset discovery"
+        - "Documentation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed behavior
+      description: >-
+        Be specific about the JSON: tool name, arguments, and what the result
+        payload should contain. Engine consumers rely on results reporting exact
+        rows, frame counts, cycles, offsets and warnings, so a shape proposal is
+        more useful than a description.
+      value: |
+        tool:
+        arguments:
+        ```json
+        {}
+        ```
+        expected result fields:
+    validations:
+      required: true
+
+  - type: textarea
+    id: upstream
+    attributes:
+      label: Does the upstream web app do this?
+      description: >-
+        Yes → say which UI control or file implements it, so the port can follow
+        it. No → say whether upstream *refuses* to do it (then this is a
+        deliberate addition and needs a reason) and whether the asset pack can
+        even express it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other designs you rejected, and why the proposal is better for a headless consumer.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Constraints this must respect
+      options:
+        - label: "Stays offline — no network calls, no telemetry, no new environment variables beyond `LPC_ASSETS_DIR`"
+          required: false
+        - label: "Keeps the universal sheet layout unless it is a breaking, versioned change (13 x 54 grid of 64px frames)"
+          required: false
+        - label: "Keeps attribution: every render still writes `<name>-credits.csv` and `<name>-credits.txt`"
+          required: false
+        - label: "Does not vendor the asset pack into this repository"
+          required: false
+        - label: "I am willing to open a PR (needs a test; `npm test` is the only check this repo has)"
+          required: false

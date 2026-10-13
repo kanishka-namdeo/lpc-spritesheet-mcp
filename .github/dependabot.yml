@@ -1,0 +1,57 @@
+# Dependabot configuration for lpc-spritesheet-mcp.
+#
+# Why the `npm` ecosystem matters here: `@napi-rs/canvas` is a prebuilt NATIVE
+# binary and every render goes through it, so a bad bump does not fail to
+# install — it fails to render, or renders differently. The same is true of
+# `@modelcontextprotocol/sdk`, which defines the stdio protocol the server
+# speaks. Review each PR against the upstream changelog and let CI decide.
+#
+# This file only configures the pull requests Dependabot opens. It adds no
+# checks: the repo's single automated gate is `npm test`, run by
+# `.github/workflows/ci.yml` on Node 20 and 22 across Ubuntu and Windows.
+#
+# Dependabot SECURITY updates are not switched on from here — they need
+# "Code security and analysis" -> Dependabot alerts + Dependabot security
+# updates (and the dependency graph) enabled in repository settings. What this
+# file does for them is the documented part: group security PRs per ecosystem
+# with `applies-to: security-updates`, and keep `directory` at the manifest
+# location (root `package.json` + `package-lock.json`) with no `target-branch`,
+# which is what the security-update path requires.
+
+version: 2
+
+updates:
+  # Runtime and dev dependencies from the root lockfile:
+  # @modelcontextprotocol/sdk, @napi-rs/canvas, zod, gifenc.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Dependabot is not the reviewer: keep the queue small so every PR gets a
+    # human read of the changelog before it can touch the renderer.
+    open-pull-requests-limit: 5
+    groups:
+      npm-version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      npm-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Action pins used by .github/workflows/ci.yml: actions/checkout@v4 and
+  # actions/setup-node@v4. Nothing else is referenced by any workflow here.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      actions-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
