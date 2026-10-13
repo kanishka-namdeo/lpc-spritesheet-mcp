@@ -39,6 +39,9 @@ jobs:
       - name: Server fails gracefully without assets
         shell: bash
         run: |
-          LPC_ASSETS_DIR=/nonexistent node src/index.js >/dev/null 2>err.log; code=$?
+          # `bash -e` aborts the step at a failing command, so the exit code has to be
+          # captured with `|| code=$?` rather than read from `$?` on the next line.
+          code=0
+          LPC_ASSETS_DIR=/nonexistent node src/index.js >/dev/null 2>err.log || code=$?
           grep -q "asset pack is not installed" err.log
           test "$code" -eq 1

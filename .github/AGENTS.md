@@ -42,6 +42,10 @@ project's highest-volume support path.
   server must exit `1` and print `asset pack is not installed` on stderr. Rewording that startup
   message in `src/index.js` breaks CI here — change both in the same pass, and the
   `asset-pack-problem.yml` wording with it.
+- **Steps run under `bash -e -o pipefail`, so an expected failure must capture its own status.**
+  `cmd; code=$?` aborts at `cmd` and never reaches the assignment — that is how this step sat
+  untestable behind the failing test step. Write `code=0` then `cmd || code=$?`. Any new step that
+  asserts on a non-zero exit needs the same shape.
 - **There is no lint, typecheck, format, or publish workflow.** Nothing here gates on tooling the
   repo does not have. Do not describe CI as running checks it does not run.
 - **Dependabot is a config file, not a claim that the repo runs extra checks.** It opens pull

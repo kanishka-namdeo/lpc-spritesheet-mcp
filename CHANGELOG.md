@@ -19,6 +19,9 @@ Every CI run on `main` had been failing; these are the causes.
 - `test/smoke-canvas.mjs` looked for the pack one directory above the repository (the wrong place on
   a CI runner) and ignored `LPC_ASSETS_DIR`; it now uses the shared resolver and asserts rather than
   only printing.
+- The graceful-failure CI step could never have passed: it read `code=$?` on the line after a
+  command expected to fail, which `bash -e` aborts first. It was masked because `npm test` always
+  failed before it ran. It now captures the status with `cmd || code=$?`.
 - Asset-pack discovery is a single shared implementation, `src/assets-dir.js`, imported by the
   server, the tests and the scripts, so the three can no longer disagree.
 - `get_preview` accepts `combat_idle` as an alias of `combat`, as `get_animation` already did and as
