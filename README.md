@@ -18,7 +18,7 @@ describes a character, and gets back a game-ready 832×3456 spritesheet with the
 no browser, no screenshotting, no manual export button.
 
 <p align="center">
-  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the seven tools, list_animations reports the walk row block, and a get_preview call renders a hooded archer's walk cycle shown animating in the corner" width="880"><br>
+  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the seven tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
   <sub>A real session against <code>src/index.js</code> over stdio — every byte of JSON shown is what the server returned.<br>
   Only the typing timing is authored. Regenerate with <code>npm run demo</code> (<a href="./docs/img/demo-credits.csv">attribution</a>).</sub>
 </p>
@@ -158,8 +158,8 @@ human male head, neutral expression (note the head default is *not* body-aware).
 
 ### One call, start to finish
 
-Ask your agent for *"a female archer with red hair, a teal hood and a recurve bow, walking left"*,
-or call the tool directly:
+Ask your agent for *"a female archer with red hair, a teal hood and a recurve bow, walking toward
+the viewer"*, or call the tool directly:
 
 ```jsonc
 // tools/call → get_preview
