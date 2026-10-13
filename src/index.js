@@ -51,7 +51,8 @@ function resolveAssetsDir() {
       "[lpc-spritesheet] https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator",
       "[lpc-spritesheet]",
       "[lpc-spritesheet] Fix (pick one):",
-      "[lpc-spritesheet]   1. Run: npm run setup-assets   (clones into ~/.lpc-spritesheet/lpc-generator-src)",
+      "[lpc-spritesheet]   1. Run: lpc-spritesheet-setup   (npm run setup-assets from a checkout)",
+      "[lpc-spritesheet]      Clones into ~/.lpc-spritesheet/lpc-generator-src",
       "[lpc-spritesheet]   2. Clone it yourself next to this package as 'lpc-generator-src', or anywhere, then set",
       "[lpc-spritesheet]      the LPC_ASSETS_DIR environment variable to that folder in your MCP client config.",
       "[lpc-spritesheet] Searched: " + candidates.join(", "),
@@ -257,7 +258,7 @@ function listAnimations() {
 // ---------------------------------------------------------------------------
 
 const server = new Server(
-  { name: "lpc-spritesheet", version: "1.1.0" },
+  { name: "lpc-spritesheet", version: "1.2.0" },
   { capabilities: { tools: {} } },
 );
 

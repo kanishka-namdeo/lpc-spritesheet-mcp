@@ -5,7 +5,10 @@
 This server renders game spritesheets to local PNG files from a local asset
 clone. It runs entirely offline: no network calls, no telemetry, no secrets.
 Generated files are written to the `output_path` supplied by the calling MCP
-client (default: the package's `output/` directory).
+client (default: `lpc-spritesheet/` under the OS temp directory).
+
+The only command in this package that reaches the network is `lpc-spritesheet-setup`, which runs
+`git clone` against the fixed upstream asset-pack URL. The server never invokes it.
 
 ## Reporting
 
@@ -22,4 +25,4 @@ public. Please include the tool call arguments and server stderr output.
   GPL mix). The server writes `<name>-credits.csv` and `<name>-credits.txt` next to every sheet —
   keep them when redistributing renders.
 - The server reads exactly one environment variable (`LPC_ASSETS_DIR`) and makes no network calls;
-  nothing here accepts a URL, a remote asset source, or a template.
+  it accepts no URL, remote asset source, or template — the pack location is a local directory.

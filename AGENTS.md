@@ -108,6 +108,11 @@ These bind every subtree. Child docs may add local detail but may not weaken the
   other than `LPC_ASSETS_DIR`. `SECURITY.md` is the outward statement of this.
 - **Version is declared in three places and they must agree:** `package.json`, the `Server`
   info in `src/index.js`, and the newest `CHANGELOG.md` heading.
+- **The published tarball is chosen by `package.json` `files`,** not by `.npmignore`: `src/`,
+  `scripts/setup-assets.mjs`, `docs/*.md`, `README.md`, `CHANGELOG.md`, `LICENSE`. Never `docs/img/`,
+  the generators, or `test/` — those need a checkout, the asset pack, or a devDependency, none of
+  which an installer has. `CONTRIBUTING.md` owns the release runbook, whose pack-and-install step is
+  the only check that runs the shipped artifact instead of the checkout.
 - **`npm test` is the acceptance gate.** No lint, typecheck, or format tooling exists in this
   repo; do not claim a check that is not wired up.
 

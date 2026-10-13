@@ -35,9 +35,13 @@ touches the network; everything here is plain ESM with no build step.
 - **Render tools share one save path.** They differ only by the `extract` callback handed to
   `renderAndSave`. Add a new render tool by supplying an extractor, not by duplicating write logic.
 - **Missing assets fail at startup, on stderr, exit 1**, with the phrase `asset pack is not installed`.
-  That phrase is grepped by CI; if you reword it, update `.github/AGENTS.md` and `ci.yml`.
-- Default output is `<package>/output/<name>-<timestamp>.png`; `resolveOutputPath` creates parent
-  directories and resolves relative paths against the **server's** cwd, not the client's.
+  That phrase is grepped by CI; if you reword it, update `.github/AGENTS.md` and `ci.yml`. The fix hint
+  names the `lpc-spritesheet-setup` bin first, because an installed server has no checkout to run
+  `npm run setup-assets` in.
+- Default output is `lpc-spritesheet/<name>-<timestamp>.png` under the OS temp directory;
+  `resolveOutputPath` creates parent directories and resolves relative paths against the **server's**
+  cwd, not the client's. Never default into the package directory — an installed server lives under
+  `node_modules/`, which the next `npm install` replaces and a root-owned global prefix cannot write.
 
 ## Work Guidance
 

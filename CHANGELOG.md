@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-13
+
 ### Fixed (CI and documentation drift)
 
 Every CI run on `main` had been failing; these are the causes.
@@ -35,6 +37,9 @@ Every CI run on `main` had been failing; these are the causes.
 - The README's flagship example passed `weapon: "Recurve Bow"`, which is not an item in the pack and
   threw a selection error. It is `Recurve`, and a new test renders that exact call and asserts the
   `image` and `frames` values the README prints.
+- The no-assets startup hint told users to run `npm run setup-assets`, which only resolves from a
+  checkout. Installed users — the `npx` / `npm install -g` path this package is published for — are now
+  pointed at the `lpc-spritesheet-setup` bin, with the checkout command kept as the alternative.
 
 ### Added
 
@@ -49,6 +54,8 @@ Every CI run on `main` had been failing; these are the causes.
   asset-pack problems and feature requests, and a PR template that mirrors the real acceptance gate.
 - Four end-to-end regression tests pinning the fixes above: the suite is 36 passing items (19 engine,
   16 end-to-end, 1 canvas smoke), up from 32.
+- `lpc-spritesheet-setup`, an npm bin for `scripts/setup-assets.mjs`. 1.1.0 shipped that script inside
+  the tarball with no way to invoke it short of a checkout.
 
 ### Changed
 
@@ -60,6 +67,17 @@ Every CI run on `main` had been failing; these are the causes.
   75 colors, not 74), the "15 animations x 4 directions" phrasing (13 blocks are 4-direction, `hurt`
   and `climb` ship one facing each — which is exactly the 54 rows), the credits filenames in
   `SECURITY.md`, and four upstream counts in `docs/capability-inventory.md`.
+- A render with no `output_path` now lands in `<os tmpdir>/lpc-spritesheet/` rather than
+  `<package>/output/`. For an installed server the old default resolved inside
+  `node_modules/lpc-spritesheet-mcp/`, where the next `npm install` replaces the tree and a root-owned
+  global prefix refuses the write outright. The absolute path is still reported in every result's
+  `output`, with the credits sidecars beside it.
+- `zod` is no longer a declared dependency: no file in `src/`, `scripts/` or `test/` imports it, and
+  `@modelcontextprotocol/sdk` declares the range it actually needs.
+- The published tarball ships the runtime, `scripts/setup-assets.mjs` and the `docs/*.md` internals —
+  20 files, 229 kB unpacked, down from 37 files and 1.5 MB. `docs/img/` and the three generators it
+  documents are dev-only: an installer has neither the `gifenc` devDependency nor the 350 MB pack the
+  generators read, so shipping them bought 1.2 MB of imagery no consumer of `node_modules` can open.
 
 ## [1.1.0] - 2026-09-17
 

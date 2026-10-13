@@ -1,6 +1,6 @@
 {
   "name": "lpc-spritesheet-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "MCP server that generates Universal LPC character spritesheets headlessly (no browser) from the LiberatedPixelCup asset pack: 657 items, 6 body types, palette recoloring, 15 standard animations plus oversize custom ones",
   "keywords": [
     "mcp",
@@ -24,8 +24,8 @@
   },
   "files": [
     "src",
-    "scripts",
-    "docs",
+    "scripts/setup-assets.mjs",
+    "docs/*.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -52,8 +52,7 @@
   "homepage": "https://github.com/kanishka-namdeo/lpc-spritesheet-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@napi-rs/canvas": "^0.1.80",
-    "zod": "^4.6.5"
+    "@napi-rs/canvas": "^0.1.80"
   },
   "devDependencies": {
     "gifenc": "^1.0.3"

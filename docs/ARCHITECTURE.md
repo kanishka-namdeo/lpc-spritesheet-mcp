@@ -180,7 +180,7 @@ flowchart LR
   end
   ADIR["src/assets-dir.js<br/>valid pack = sheet_definitions/<br/>and spritesheets/ both present"]
   EXT["External asset pack clone<br/>read-only, never vendored"]
-  OUTD["Output dir: args.output_path,<br/>else output/ in the package"]
+  OUTD["Output dir: args.output_path,<br/>else lpc-spritesheet/ in the OS temp dir"]
 
   CAND --> ADIR
   ADIR -->|none valid| FAIL["startup: stderr block, exit 1"]

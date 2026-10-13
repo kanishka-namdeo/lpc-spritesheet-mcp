@@ -54,6 +54,44 @@ enough — no export needed.
    gallery, `demo` → the animated session capture). A change that alters visible rendering must
    regenerate them in the same pass, and each render keeps its credits sidecar.
 
+## Releasing
+
+There is no publish workflow — CI runs `npm test` and the no-assets check, and stops there. The
+release is a human sequence, run from a checkout with the asset pack present.
+
+1. **Gate first.** `npm test` (36 items) locally and CI green on `main`. Nothing else in this repo
+   checks the publish surface, so do not skip this step and do not publish from a dirty tree.
+2. **Decide the version.** A change to the 832x3456 universal layout, a tool rename, or any other
+   break of the external contract is a major. A new tool, argument, or `bin` is a minor. Everything
+   else is a patch.
+3. **Set the version in all three places** — `package.json`, the `Server` info in `src/index.js`, and
+   the newest `CHANGELOG.md` heading, which also gets the release date. Turn `## [Unreleased]` into the
+   released heading and leave an empty `## [Unreleased]` above it.
+4. **Pack and install the artifact, then run it.** This is the only step that catches what a checkout
+   cannot see, because the server resolves paths relative to its own package directory:
+
+   ```bash
+   npm pack                                                   # → lpc-spritesheet-mcp-<version>.tgz
+   npm init -y && npm install ../lpc-spritesheet-mcp-<version>.tgz
+   ./node_modules/.bin/lpc-spritesheet-mcp                      # no pack: stderr block, exit 1
+   npx -y @modelcontextprotocol/inspector --cli \
+     node_modules/lpc-spritesheet-mcp/src/index.js --method tools/list
+   ```
+
+   Check the tarball list too: `src/`, `scripts/setup-assets.mjs`, `docs/*.md`, `README.md`,
+   `CHANGELOG.md`, `LICENSE`. No `docs/img/`, no generators, no `test/`, no asset pack. `tools/list`
+   must return the seven tools, and `initialize` must report the version you just set.
+5. **Publish.** `npm whoami` must already answer; if the account requires 2FA, pass `--otp=<code>`.
+   Provenance cannot be minted from a workstation — `--provenance` needs CI's OIDC identity.
+6. **Mark it.** `git tag v<version> && git push --tags`, then a GitHub release whose notes are that
+   `CHANGELOG.md` section. Nothing here enforces the tag, so it is easy to forget and painful to
+   reconstruct.
+7. **Verify from the registry.** `npm view lpc-spritesheet-mcp version`, and one `npx -y
+   lpc-spritesheet-mcp` startup from a directory that is not this checkout.
+
+`lpc-spritesheet-setup` in step 4 clones ~350 MB when no pack is found, and prints "already present"
+when one is. Point it at an existing pack with `LPC_ASSETS_DIR` unless you mean the clone.
+
 ## Reporting bugs
 
 Open a [new issue](https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/issues/new/choose) using

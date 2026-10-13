@@ -201,7 +201,9 @@ ships no `walk.png` for it, so the engine renders the archer, leaves the bow's w
 asserts these exact numbers and this exact warning, so the example above cannot rot. Note also that
 `hat_hood_cloth` stayed brown: `colors.clothes` recolors the torso group, not every cloth item.
 
-Relative `output_path`s resolve against the **server's** working directory, not the client's.
+Relative `output_path`s resolve against the **server's** working directory, not the client's. Omit
+`output_path` entirely and the sheet lands in `lpc-spritesheet/` under the OS temp directory, with a
+timestamp suffix so two renders never overwrite each other.
 
 ## What comes out
 

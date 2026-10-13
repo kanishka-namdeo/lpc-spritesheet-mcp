@@ -3,7 +3,7 @@
 ## Purpose
 
 Operator-facing helpers wired to npm scripts. They are dev and release tooling, not part of the
-server's runtime — though `package.json` `files` does ship this folder.
+server's runtime — and only `setup-assets.mjs` is in the published tarball, as a bin.
 
 ## Ownership
 

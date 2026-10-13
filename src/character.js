@@ -1,11 +1,14 @@
 // Shared character-request pipeline for the generate_* tools: normalize input,
 // render, save PNG (+credits/character JSON), and build the JSON result.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { normalizeSelections, SelectionError } from "./engine/selection.js";
 import { getAllCredits, creditsToCsv, creditsToTxt } from "./engine/credits.js";
 
-export const DEFAULT_OUTPUT_DIR = path.resolve(import.meta.dirname, "..", "output");
+// Not the package directory: an installed package lives under node_modules/, which the next
+// `npm install` replaces and a root-owned global prefix does not let us write into.
+export const DEFAULT_OUTPUT_DIR = path.join(os.tmpdir(), "lpc-spritesheet");
 
 export class CharacterRequestError extends Error {}
 
