@@ -646,7 +646,8 @@ async function main() {
 
   // Poster = the final frame as a still (non-animated README fallback).
   const poster = painted[painted.length - 1].canvas;
-  fs.writeFileSync(POSTER_PATH, poster.toBuffer("image/png"));
+  const posterPng = poster.toBuffer("image/png");
+  fs.writeFileSync(POSTER_PATH, posterPng);
 
   // --- attribution: the server's own credit files, verbatim ----------------
   const rawCsv = fs.readFileSync(preview.credits.csv, "utf8");
@@ -661,14 +662,18 @@ async function main() {
   fs.writeFileSync(CREDITS_TXT, txt);
   fs.rmSync(scratchDir, { recursive: true, force: true });
 
+  const rel = (p) => path.relative(REPO, p);
   console.log(
-    `wrote ${path.relative(REPO, GIF_PATH)}: ${W}x${H}, ${painted.length} frames, ${totalMs}ms, ` +
+    `wrote ${rel(GIF_PATH)}: ${W}x${H}, ${painted.length} frames, ${totalMs}ms, ` +
       `${bytes.length} bytes, loops forever`,
   );
-  console.log(`wrote ${path.relative(REPO, POSTER_PATH)}: ${poster.width}x${poster.height}`);
+  console.log(`wrote ${rel(POSTER_PATH)}: ${poster.width}x${poster.height}, ${posterPng.length} bytes`);
   console.log(
-    `wrote ${path.relative(REPO, CREDITS_CSV)} (${creditEntries.length} assets) and ` +
-      `${path.relative(REPO, CREDITS_TXT)} (${authors.length} authors; licenses: ${licenses.join(", ")})`,
+    `wrote ${rel(CREDITS_CSV)}: ${creditEntries.length} asset rows, ${Buffer.byteLength(csv)} bytes`,
+  );
+  console.log(
+    `wrote ${rel(CREDITS_TXT)}: ${creditEntries.length} assets, ${authors.length} authors, ` +
+      `${Buffer.byteLength(txt)} bytes (licenses: ${licenses.join(", ")})`,
   );
 }
 

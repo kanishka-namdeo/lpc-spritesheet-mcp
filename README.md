@@ -206,18 +206,19 @@ Relative `output_path`s resolve against the **server's** working directory, not 
 ## What comes out
 
 <p align="center">
-  <img src="docs/img/gallery.png" alt="Nine generated characters in a three-by-three grid, each captioned with the capability it proves: heraldic shield pattern, an animation-scoped bow item, a wheelchair custom block, a palette recolor, the child body type, the muscular body type, a lizard head, an undead head with zombie skin, and a 128px katana animation block" width="888">
+  <img src="docs/img/gallery.png" alt="Nine generated characters in a three-by-three grid, each captioned with the capability it proves: heraldic shield pattern, an animation-scoped bow item, a wheelchair custom block, a palette recolor, the child body type, the muscular body type, a lizard head, an undead head with zombie skin, and a 128px katana animation block" width="1152">
   <br><sub>Nine characters, nine capabilities — every one is a single tool call.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/img/walk-strip.png" alt="A samurai's walk playback cycle: eight frames of 64px art drawn at 2x, wrapped over two rows, each labelled with its frame index" width="1064">
-  <br><sub><code>get_preview</code> — walk, down, 2×. Frames are labelled with the cycle indices the tool returns.</sub>
+  <img src="docs/img/walk-strip.png" alt="A muscular axe-wielding character's walk playback cycle: eight frames of 64px art drawn at 2x in one row, each labelled with its cycle index from 1 to 8" width="1064">
+  <br><sub><code>get_preview</code> — walk, down, 2×. The numbers are the cycle indices the tool returns.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/img/sheet-katana.png" alt="Two crops from one generated katana sheet: the standard walk row block of 64px frames above the slash_128 custom block of 128px frames, showing the size difference" width="1216">
-  <br><sub><code>generate_spritesheet</code> — the 64px walk row block above the 128px <code>slash_128</code> block the katana appends, both at native size.</sub>
+  <img src="docs/img/sheet-katana.png" alt="Three strips cropped from one generated katana sheet: the standard walk row block drawn at 2x with no katana sprite present, then the walk_128 and slash_128 custom blocks at native 128px" width="1216">
+  <br><sub><code>generate_spritesheet</code> — the 64px walk row above the two 128px custom blocks the katana appends.
+  The empty walk row is the honest case: this weapon ships no standard-row art, and the tool says so in <code>warnings</code>.</sub>
 </p>
 
 Rendering is fast enough to iterate on inside a conversation: a plain 832×3456 sheet composites in
