@@ -97,7 +97,8 @@ export function normalizeSelections(catalog, bodyType, selectionsInput = {}, col
       const verified = fixMissingRecolor(catalog, item.itemId, wantedRecolor, recolorEntry.type_name);
       if (!verified) {
         throw new SelectionError(
-          `selections.${key}: "${wantedRecolor}" is not a valid color for "${item.itemId}" slot "${recolorEntry.label}". Valid: ${recolorEntry.variants.join(", ")}`,
+          `selections.${key}: "${wantedRecolor}" is not a valid color for "${item.itemId}" slot "${recolorEntry.label}". ` +
+            colorNamesHint(wantedRecolor, recolorEntry.variants),
         );
       }
       selections[recolorEntry.type_name ?? item.typeName ?? item.itemId] = {
@@ -129,7 +130,8 @@ export function normalizeSelections(catalog, bodyType, selectionsInput = {}, col
       const verified = fixMissingRecolor(catalog, item.itemId, selection.recolor, null);
       if (!verified) {
         throw new SelectionError(
-          `Item "${item.itemId}" has no color "${selection.recolor}". Valid: ${item.recolors[0].variants.join(", ")}`,
+          `Item "${item.itemId}" has no color "${selection.recolor}". ` +
+            colorNamesHint(selection.recolor, item.recolors[0].variants),
         );
       }
       selection.recolor = verified;
@@ -170,7 +172,8 @@ export function normalizeSelections(catalog, bodyType, selectionsInput = {}, col
       const recolorEntry =
         selection.subId != null ? item.recolors[selection.subId] : item.recolors[0];
       throw new SelectionError(
-        `colors.${group}: "${color}" is not a valid color for "${item.itemId}". Valid: ${recolorEntry.variants.join(", ")}`,
+        `colors.${group}: "${color}" is not a valid color for "${item.itemId}". ` +
+          colorNamesHint(color, recolorEntry.variants),
       );
     }
     selection.recolor = verified;
@@ -179,7 +182,33 @@ export function normalizeSelections(catalog, bodyType, selectionsInput = {}, col
   return selections;
 }
 
-function resolveItem(catalog, wanted, groupName) {
+/** How many color names an invalid-color error may list before pointing at list_palettes. */
+const COLOR_HINT_CAP = 15;
+
+/**
+ * A material's variant list reaches ~93 names once palette versions are folded in, which made a
+ * single typo cost more text than the payload it was correcting. Name the nearest candidate and
+ * cap the enumeration instead.
+ */
+function colorNamesHint(wanted, variants) {
+  const w = String(wanted).toLowerCase();
+  const suggestion = variants.find(
+    (v) => v.toLowerCase().startsWith(w.slice(0, 4)) || w.startsWith(v.toLowerCase().slice(0, 4)),
+  );
+  const shown = variants.slice(0, COLOR_HINT_CAP);
+  const rest = variants.length - shown.length;
+  return (
+    `Valid: ${shown.join(", ")}${rest > 0 ? `… (${rest} more)` : ""}.` +
+    (suggestion ? ` Did you mean "${suggestion}"?` : " See list_palettes.")
+  );
+}
+
+/**
+ * Resolve a user- or hash-supplied item name inside a selection group: exact itemId, then the
+ * underscored display name, then a unique partial. Exported so the saved-character readers share
+ * this one resolution path instead of inventing their own.
+ */
+export function resolveItem(catalog, wanted, groupName) {
   const direct = catalog.getItem(wanted);
   if (direct) return direct;
 
@@ -210,7 +239,8 @@ function applyEyeColor(catalog, selections, item, color) {
   const verified = fixMissingRecolor(catalog, item.itemId, color, "eyes");
   if (!verified) {
     throw new SelectionError(
-      `"${color}" is not a valid eye color for "${item.itemId}". Valid: ${item.recolors[idx].variants.join(", ")}`,
+      `"${color}" is not a valid eye color for "${item.itemId}". ` +
+        colorNamesHint(color, item.recolors[idx].variants),
     );
   }
   selections["eyes"] = {

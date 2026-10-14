@@ -117,7 +117,7 @@ export class SpriteEngine {
   /**
    * Render a full character sheet.
    * @param {object} opts { bodyType, selections, matchBodyColorEnabled }
-   * @returns {Promise<{canvas, layout, warnings}>}
+   * @returns {Promise<{canvas, layout, warnings, layers}>}
    */
   async renderCharacter({ bodyType, selections, matchBodyColorEnabled = true }) {
     const catalog = this.catalog;
@@ -191,6 +191,32 @@ export class SpriteEngine {
     }
 
     drawCalls.sort((a, b) => a.zPos - b.zPos);
+
+    // Which item layers actually painted, and the row blocks each contributed. Reported from the
+    // draw calls themselves so a caller serializing a character spec never has to re-derive the
+    // animation-support rules and get a subtly different answer.
+    const painted = new Map();
+    for (const call of drawCalls) {
+      const key = `${call.itemId}|${call.layerNum}`;
+      const entry =
+        painted.get(key) ?? { itemId: call.itemId, layerNum: call.layerNum, zPos: call.zPos, animations: new Set() };
+      entry.animations.add(call.animation);
+      painted.set(key, entry);
+    }
+    for (const item of customAnimationItems) {
+      const key = `${item.itemId}|${item.layerNum}`;
+      const entry =
+        painted.get(key) ?? { itemId: item.itemId, layerNum: item.layerNum, zPos: item.zPos, animations: new Set() };
+      entry.customAnimation = item.customAnimation;
+      painted.set(key, entry);
+    }
+    const layers = [...painted.values()].map((entry) => ({
+      itemId: entry.itemId,
+      layerNum: entry.layerNum,
+      zPos: entry.zPos,
+      animations: [...entry.animations].sort(),
+      ...(entry.customAnimation ? { customAnimation: entry.customAnimation } : {}),
+    }));
 
     // ---- size canvas (renderer.ts:507-559) ----
     const currentCustomAnimations = {};
@@ -291,14 +317,23 @@ export class SpriteEngine {
     }
 
     // Emit missing-asset warnings aggregated per item.
+    // Rows are discovered as sprite loads settle, so Set order follows async timing. Report in
+    // sheet order instead: the same character must produce the same warning string every run,
+    // and `test/golden-test.mjs` compares these strings across processes.
+    const rowOrder = new Map(Object.keys(ANIMATION_OFFSETS).map((name, i) => [name, i]));
     for (const [itemId, rows] of missingByItem) {
+      const ordered = [...rows].sort((a, b) => {
+        const ra = rowOrder.get(a) ?? Number.MAX_SAFE_INTEGER;
+        const rb = rowOrder.get(b) ?? Number.MAX_SAFE_INTEGER;
+        return ra !== rb ? ra - rb : String(a).localeCompare(String(b));
+      });
       warnings.push(
-        `${itemId}: no sprite for row(s) ${Array.from(rows).join(", ")} — those rows will be empty (${rows.size} missing)`,
+        `${itemId}: no sprite for row(s) ${ordered.join(", ")} — those rows will be empty (${rows.size} missing)`,
       );
     }
 
     const layout = this.describeLayout(Object.keys(currentCustomAnimations));
-    return { canvas, layout, warnings };
+    return { canvas, layout, warnings, layers };
   }
 
   /** Static layout description; when customAnimNames given, includes their blocks. */
@@ -341,12 +376,22 @@ export class SpriteEngine {
     return { standard, custom };
   }
 
+  /**
+   * Custom-animation names this pack can actually produce. `customAnimations` mirrors
+   * upstream's definition table, which carries blocks no shipped item references; naming
+   * those in an error message sends callers chasing an animation nothing provides.
+   */
+  customAnimationNames() {
+    const providers = this.catalog.customAnimationProviders();
+    return Object.keys(customAnimations).filter((name) => providers[name]?.length > 0);
+  }
+
   /** Crop one standard animation row block from a rendered sheet. */
   extractAnimation(canvas, animationName) {
     const config = ANIMATION_CONFIGS[resolveAnimationName(animationName)];
     if (!config) {
       throw new Error(
-        `Unknown animation: ${animationName}. Standard: ${Object.keys(ANIMATION_CONFIGS).join(", ")}. Custom: ${Object.keys(customAnimations).join(", ")}. See list_animations.`,
+        `Unknown animation: ${animationName}. Standard: ${Object.keys(ANIMATION_CONFIGS).join(", ")}. Custom: ${this.customAnimationNames().join(", ")}. See list_animations.`,
       );
     }
     const srcY = config.row * FRAME_SIZE;
@@ -374,7 +419,34 @@ export class SpriteEngine {
   }
 
   /**
-   * Horizontal preview strip: the playback cycle of one animation for one
+   * One frame cell of a custom-animation block, cropped from a rendered sheet. The cell rect comes
+   * from the render's own `layout.custom` entry, so oversize blocks anchor the same way the
+   * whole-block crop does.
+   */
+  extractCustomFrame(canvas, layout, customName, direction = "down", frameIndex = 0) {
+    const block = layout.custom.find((c) => c.name === customName);
+    if (!block) throw new Error(`No custom animation ${customName} in this sheet`);
+    const dirIndex = DIRECTIONS.indexOf(direction);
+    if (dirIndex < 0) throw new Error(`Unknown direction: ${direction}. Valid: ${DIRECTIONS.join(", ")}`);
+    if (dirIndex >= block.rows) {
+      throw new Error(`Direction ${direction} not available for ${customName} (${block.rows} row(s))`);
+    }
+    if (frameIndex < 0 || frameIndex >= block.columns) {
+      throw new Error(`Frame ${frameIndex} out of range for ${customName} (${block.columns} column(s))`);
+    }
+    const out = createCanvas(block.frameSize, block.frameSize);
+    const ctx = out.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      canvas,
+      frameIndex * block.frameSize, block.yOffset + dirIndex * block.frameSize,
+      block.frameSize, block.frameSize,
+      0, 0, block.frameSize, block.frameSize,
+    );
+    return out;
+  }
+
+  /** Horizontal preview strip: the playback cycle of one animation for one
    * direction, cropped from a rendered sheet. Single-row blocks (hurt, climb)
    * have only one facing and accept any direction. Returns {canvas, frames}.
    */
@@ -382,7 +454,7 @@ export class SpriteEngine {
     const config = ANIMATION_CONFIGS[resolveAnimationName(animationName)];
     if (!config) {
       throw new Error(
-        `Unknown animation: ${animationName}. Standard: ${Object.keys(ANIMATION_CONFIGS).join(", ")}. Custom: ${Object.keys(customAnimations).join(", ")}. See list_animations.`,
+        `Unknown animation: ${animationName}. Standard: ${Object.keys(ANIMATION_CONFIGS).join(", ")}. Custom: ${this.customAnimationNames().join(", ")}. See list_animations.`,
       );
     }
     let dirIndex = DIRECTIONS.indexOf(direction);

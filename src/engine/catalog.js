@@ -185,6 +185,23 @@ export class Catalog {
     return Array.from(this.byTypeName.keys());
   }
 
+  /**
+   * Which catalog items provide each custom-animation block, as `block name -> itemId[]`.
+   * Upstream's definition table carries blocks no shipped item references, so callers that
+   * advertise animation names need this to tell reachable ones from dead ones.
+   */
+  customAnimationProviders() {
+    const byBlock = {};
+    for (const item of this.itemsById.values()) {
+      for (const layer of Object.values(item.layers)) {
+        if (!layer.custom_animation) continue;
+        const ids = (byBlock[layer.custom_animation] ??= []);
+        if (!ids.includes(item.itemId)) ids.push(item.itemId);
+      }
+    }
+    return byBlock;
+  }
+
   /** Resolve an asset-relative path (e.g. "spritesheets/.../walk.png") on disk. */
   resolveSprite(relPath) {
     const full = path.join(this.assetsDir, relPath);
