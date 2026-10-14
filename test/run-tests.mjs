@@ -10,6 +10,9 @@ import { normalizeSelections, SelectionError } from "../src/engine/selection.js"
 import { getAllCredits, creditsToCsv } from "../src/engine/credits.js";
 import { ANIMATION_OFFSETS } from "../src/engine/constants.js";
 import { findAssetsDir } from "../src/assets-dir.js";
+import { buildCharacterSpec, readSavedCharacter } from "../src/spec.js";
+import { validateLayout } from "../src/validate.js";
+import { customAnimations } from "../src/engine/custom-animations.js";
 
 const ASSETS_DIR = findAssetsDir();
 if (!ASSETS_DIR) {
@@ -329,4 +332,102 @@ test("character JSON merges with args.selections/colors and validates bodyType",
     () => normalizeSelections(catalog, "potato", {}, {}),
     /Unknown bodyType "potato"/,
   );
+});
+
+test("custom animation reachability: only pack-provided blocks are advertised", () => {
+  const providers = catalog.customAnimationProviders();
+  const advertised = engine.customAnimationNames();
+  assert.ok(advertised.includes("wheelchair"), "wheelchair is provided by pack items");
+  assert.ok(advertised.includes("walk_128"), "walk_128 is provided by pack items");
+  // Upstream defines these two but no item in this pack uses them; naming them in an error
+  // message sends callers after an animation nothing can render.
+  assert.ok(Object.keys(customAnimations).includes("thrust_128"), "the definition still exists");
+  assert.ok(!providers.thrust_128?.length, "and no pack item provides it");
+  assert.ok(!advertised.includes("thrust_128"), "so it is not advertised");
+  assert.ok(!advertised.includes("whip_oversize"), "whip_oversize is not advertised either");
+  assert.equal(advertised.length, Object.keys(providers).length);
+});
+
+test("renderCharacter reports which item layers painted and their row blocks", async () => {
+  const selections = normalizeSelections(catalog, "male", { weapon: "Katana" }, {});
+  const { layers } = await engine.renderCharacter({ bodyType: "male", selections });
+  assert.ok(Array.isArray(layers) && layers.length > 3, "a layer inventory comes back");
+  const body = layers.find((l) => l.itemId === "body");
+  assert.ok(body, "the body layer is reported");
+  assert.deepEqual(body.animations, [...body.animations].sort(), "animations are reported sorted");
+  assert.ok(body.animations.includes("walk"), "the body supports walk");
+  const katana = layers.find((l) => l.itemId === "weapon_sword_katana");
+  assert.ok(katana.customAnimation, "a custom-block item is reported with its block");
+  assert.ok(layers.every((l) => typeof l.zPos === "number"), "every layer carries its z position");
+});
+
+test("an invalid color name suggests the nearest one and caps the list", () => {
+  let message = "";
+  try {
+    normalizeSelections(catalog, "male", {}, { body: "dark" });
+  } catch (e) {
+    message = e.message;
+  }
+  assert.match(message, /Did you mean "dark_green"\?/);
+  assert.ok(message.length < 600, `error stayed short, got ${message.length} chars: ${message}`);
+  assert.match(message, /\(\d+ more\)/, "the truncated tail is counted, not dropped silently");
+});
+
+test("missing-row warnings list rows in sheet order, not load order", async () => {
+  const selections = normalizeSelections(catalog, "child", {}, {});
+  const first = await engine.renderCharacter({ bodyType: "child", selections });
+  const second = await engine.renderCharacter({ bodyType: "child", selections });
+  assert.deepEqual(first.warnings, second.warnings, "the same character reports the same strings");
+  const line = first.warnings.find((w) => /no sprite for row/.test(w));
+  const rows = line.match(/row\(s\) (.+?) —/)[1].split(", ");
+  assert.deepEqual(rows, [...rows].sort((a, b) => ANIMATION_OFFSETS[a] - ANIMATION_OFFSETS[b]), `${rows}`);
+});
+
+test("validate_sheet layout audit passes on the real pack and fails on a broken table", () => {
+  const clean = validateLayout(catalog);
+  assert.equal(clean.summary.fail, 0, JSON.stringify(clean.checks.filter((c) => c.status === "fail")));
+  assert.ok(
+    clean.checks.some((c) => c.id === "custom-unreachable" && c.status === "warn"),
+    "the unreachable blocks are reported rather than hidden",
+  );
+
+  const saved = ANIMATION_OFFSETS.walk;
+  try {
+    ANIMATION_OFFSETS.walk = 99 * 64;
+    const broken = validateLayout(catalog);
+    assert.ok(broken.summary.fail > 0, "a wrong offset table must fail the audit");
+    assert.ok(broken.checks.some((c) => c.id === "y-offset-agrees" && c.status === "fail"));
+  } finally {
+    ANIMATION_OFFSETS.walk = saved;
+  }
+  assert.equal(validateLayout(catalog).summary.fail, 0, "and the audit recovers when the table is restored");
+});
+
+test("a saved character spec round-trips, and a stale v1 hash degrades to warnings", async () => {
+  const selections = normalizeSelections(catalog, "female", { hair: "Bangs" }, { body: "bronze" });
+  const { layers } = await engine.renderCharacter({ bodyType: "female", selections });
+  const doc = buildCharacterSpec(catalog, {
+    bodyType: "female",
+    selections,
+    layers,
+    credits: [],
+    generator: { name: "test", version: "0" },
+    pack: { revision: null },
+  });
+  assert.ok(doc.layers.length > 2, "the doc carries the layer inventory");
+  assert.ok(doc.layers[0].supportedAnimations.length > 0, "each layer says what it paints");
+
+  const read = readSavedCharacter(catalog, JSON.parse(JSON.stringify(doc)));
+  const again = normalizeSelections(catalog, read.bodyType, read.selections, {});
+  assert.deepEqual(again, selections, "v2 export reads back as the same character");
+
+  const stale = readSavedCharacter(catalog, {
+    version: 1,
+    url: "#sex=male&hair=Bangs_2_notacolor&torso=Longsleeve",
+  });
+  assert.equal(stale.bodyType, "male", "v1 sex resolves to a body type");
+  assert.equal(stale.selections.hair.itemId, "hair_parted_side_bangs2", "the name resolved");
+  assert.equal(stale.selections.hair.recolor, null, "the dead color name was dropped, not thrown");
+  assert.equal(stale.selections.torso, undefined, "a group this pack does not have is dropped");
+  assert.equal(stale.warnings.length, 2, JSON.stringify(stale.warnings));
 });

@@ -4,12 +4,14 @@
 //
 // Tools:
 //   list_categories   — selection groups (type_name) with item counts
-//   list_items        — items in a category, with variants + valid colors
+//   list_items        — items in a category, with variants + valid colors (byte-budgeted)
 //   list_palettes     — color palettes per material (body/hair/cloth/eye/…)
 //   list_animations   — animation table incl. row layout + custom animations
 //   generate_spritesheet — render the full universal sheet PNG
 //   get_animation     — render + crop one animation (standard or custom)
 //   get_preview       — render + crop a playback strip for one direction
+//   export_character  — render + fan out into an engine-ready directory bundle
+//   validate_sheet    — audit the port's tables, the pack, or one character; writes nothing
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -33,7 +35,9 @@ import {
   rowBlockYOffset,
 } from "./engine/constants.js";
 import { customAnimations, customAnimationBase } from "./engine/custom-animations.js";
-import { renderAndSave, errorPayload, unknownArgWarnings, CharacterRequestError } from "./character.js";
+import { renderAndSave, errorPayload, unknownArgWarnings, CharacterRequestError, buildSelections } from "./character.js";
+import { exportBundle, ATLAS_FORMATS } from "./export.js";
+import { validateLayout, validateCharacter, validateCatalog, summarize } from "./validate.js";
 
 /**
  * Locate the Universal-LPC-Spritesheet-Character-Generator asset clone
@@ -73,6 +77,16 @@ console.error(
 // ---------------------------------------------------------------------------
 // Catalog tool payloads
 // ---------------------------------------------------------------------------
+
+/** Per-item keys `list_items` can emit; also the full default field set. */
+const LIST_ITEM_FIELDS = ["itemId", "name", "variants", "colors", "customAnimation"];
+
+/**
+ * Cap on the serialized `list_items` response. Measured against the live pack, an uncut `hat`
+ * page is 24.4 KB (~6.8k tokens) and `head` 20.6 KB, which is more context than the render it is
+ * being used to plan.
+ */
+const LIST_ITEMS_BYTE_BUDGET = 12_000;
 
 function listCategories() {
   const categories = [];
@@ -133,48 +147,106 @@ function listItems(args) {
   if (!Number.isInteger(args.offset) && args.offset !== undefined) {
     return { error: "offset must be an integer." };
   }
+  if (!Number.isInteger(args.limit) && args.limit !== undefined) {
+    return { error: "limit must be an integer." };
+  }
+  if (!Number.isInteger(args.offset) && args.offset !== undefined) {
+    return { error: "offset must be an integer." };
+  }
+  if (args.fields !== undefined) {
+    if (!Array.isArray(args.fields) || args.fields.some((f) => !LIST_ITEM_FIELDS.includes(f))) {
+      return {
+        error: `fields must be an array of: ${LIST_ITEM_FIELDS.join(", ")}.`,
+      };
+    }
+  }
+  const fields = new Set(args.fields ?? LIST_ITEM_FIELDS);
   const offset = Math.max(0, args.offset ?? 0);
   const limit = Math.min(Math.max(1, args.limit ?? 50), 200);
   const page = items.slice(offset, offset + limit);
 
-  // Hoist recolor palettes out of the item list: identical color lists are
-  // emitted once and referenced by id, keeping responses small.
-  /** @type {Record<string, string[]>} */
-  const palettes = {};
-  const refCache = new Map();
-  const paletteRef = (recolorEntry) => {
-    const json = recolorEntry.variants.join("|");
-    if (!refCache.has(json)) {
-      const ref = `${recolorEntry.material}.${recolorEntry.base}`;
-      refCache.set(json, ref);
-      palettes[ref] = recolorEntry.variants;
-    }
-    return refCache.get(json);
+  /**
+   * Assemble a response for exactly these items. Hoists recolor palettes out of the item list
+   * (identical color lists are emitted once and referenced by id) and prunes them to what is kept,
+   * so a budget cut cannot leave a palette entry that no returned item references.
+   */
+  const assemble = (kept) => {
+    const palettes = {};
+    const refCache = new Map();
+    const paletteRef = (recolorEntry) => {
+      const json = recolorEntry.variants.join("|");
+      if (!refCache.has(json)) {
+        const ref = `${recolorEntry.material}.${recolorEntry.base}`;
+        refCache.set(json, ref);
+        palettes[ref] = recolorEntry.variants;
+      }
+      return refCache.get(json);
+    };
+    return {
+      category,
+      total: items.length,
+      ...(items.length !== unfiltered.length ? { unfilteredTotal: unfiltered.length } : {}),
+      showing: { offset, count: kept.length },
+      palettes,
+      items: kept.map((item) => ({
+        ...(fields.has("itemId") ? { itemId: item.itemId } : {}),
+        ...(fields.has("name") ? { name: item.name } : {}),
+        ...(fields.has("variants") && item.variants.length ? { variants: item.variants } : {}),
+        ...(fields.has("colors") && item.recolors.length
+          ? {
+              colors: item.recolors.map((r) => ({
+                slot: r.label,
+                typeName: r.type_name ?? undefined,
+                material: r.material,
+                default: r.variants[0],
+                palette: paletteRef(r),
+                matchBodyColor: item.matchBodyColor || undefined,
+              })),
+            }
+          : {}),
+        ...(fields.has("customAnimation")
+          ? { customAnimation: Object.values(item.layers).find((l) => l.custom_animation)?.custom_animation }
+          : {}),
+      })),
+    };
   };
 
-  return {
-    category,
-    total: items.length,
-    ...(items.length !== unfiltered.length ? { unfilteredTotal: unfiltered.length } : {}),
-    showing: { offset, count: page.length },
-    palettes,
-    items: page.map((item) => ({
-      itemId: item.itemId,
-      name: item.name,
-      variants: item.variants.length ? item.variants : undefined,
-      colors: item.recolors.length
-        ? item.recolors.map((r) => ({
-            slot: r.label,
-            typeName: r.type_name ?? undefined,
-            material: r.material,
-            default: r.variants[0],
-            palette: paletteRef(r),
-            matchBodyColor: item.matchBodyColor || undefined,
-          }))
-        : undefined,
-      customAnimation: Object.values(item.layers).find((l) => l.custom_animation)?.custom_animation,
-    })),
-  };
+  // Trim from the end until the response fits the budget: a discovery call must not cost more
+  // context than the render it is planning. One item is always returned, however big it is.
+  let kept = page;
+  let payload = finalizeItems(assemble(kept), kept.length, page.length, offset);
+  while (kept.length > 1 && sizeOf(payload) > LIST_ITEMS_BYTE_BUDGET) {
+    kept = kept.slice(0, -1);
+    payload = finalizeItems(assemble(kept), kept.length, page.length, offset);
+  }
+  return payload;
+}
+
+/** Serialized size of a payload, as the tool envelope sends it. */
+function sizeOf(payload) {
+  return JSON.stringify(payload, null, 2).length;
+}
+
+/**
+ * Add the budget keys, then the serialized size last — `bytes` must describe the response the
+ * caller actually receives, including the cut notice itself. The two passes settle the digit count.
+ */
+function finalizeItems(payload, returned, requested, offset) {
+  const truncated = returned < requested;
+  if (truncated) {
+    payload.truncated = true;
+    payload.nextOffset = offset + returned;
+  }
+  if (returned === 1 && sizeOf(payload) > LIST_ITEMS_BYTE_BUDGET) payload.oversizedItem = true;
+  if (truncated || payload.oversizedItem) {
+    payload.note =
+      `Response cut to fit ${LIST_ITEMS_BYTE_BUDGET} bytes. Ask for fewer fields (e.g. fields:["itemId","name"]) ` +
+      "or continue with offset for the rest.";
+  }
+  let bytes = sizeOf({ ...payload, bytes: 0 });
+  bytes = sizeOf({ ...payload, bytes });
+  payload.bytes = bytes;
+  return payload;
 }
 
 function listPalettes(args) {
@@ -223,14 +295,7 @@ function listAnimations() {
           : undefined,
     };
   }
-  const itemsByCustom = {};
-  for (const item of catalog.itemsById.values()) {
-    for (const layer of Object.values(item.layers)) {
-      if (layer.custom_animation && !itemsByCustom[layer.custom_animation]?.includes(item.itemId)) {
-        (itemsByCustom[layer.custom_animation] ??= []).push(item.itemId);
-      }
-    }
-  }
+  const itemsByCustom = catalog.customAnimationProviders();
   const custom = Object.fromEntries(
     Object.entries(customAnimations).map(([name, def]) => [
       name,
@@ -239,6 +304,7 @@ function listAnimations() {
         rows: def.frames.length,
         columns: def.frames[0].length,
         baseAnimation: customAnimationBase(def),
+        available: (itemsByCustom[name] ?? []).length > 0,
         usedBy: itemsByCustom[name] ?? [],
       },
     ]),
@@ -249,7 +315,7 @@ function listAnimations() {
     standard,
     custom,
     customNote:
-      "Custom blocks are appended below the standard 54-row sheet and can also widen the canvas (128/192px frames). They appear in a render only when the character includes an item from usedBy.",
+      "Custom blocks are appended below the standard 54-row sheet and can also widen the canvas (up to 1664px with 128/192px frames). They appear in a render only when the character includes an item from usedBy. Blocks with available:false are defined upstream but no item in this pack provides them, so no character can render them.",
   };
 }
 
@@ -257,8 +323,10 @@ function listAnimations() {
 // MCP server
 // ---------------------------------------------------------------------------
 
+const SERVER_VERSION = "1.3.0";
+
 const server = new Server(
-  { name: "lpc-spritesheet", version: "1.2.0" },
+  { name: "lpc-spritesheet", version: SERVER_VERSION },
   { capabilities: { tools: {} } },
 );
 
@@ -292,7 +360,7 @@ const CHARACTER_PROPS = {
   },
   output_path: {
     type: "string",
-    description: "Absolute or relative PNG output path. Default: <server dir>/output/<name>-<timestamp>.png",
+    description: "Absolute or relative PNG output path (parents are created; relative resolves against the server's cwd). Default: lpc-spritesheet/<name>-<timestamp>.png under the OS temp directory.",
   },
   include_credits: {
     type: "boolean",
@@ -306,11 +374,25 @@ const CHARACTER_PROPS = {
 
 const CHAR_ARG_KEYS = Object.keys(CHARACTER_PROPS);
 
+// export_character writes a directory, not one file, so `output_path` is deliberately not offered:
+// a caller that passes it gets an unknown-argument warning naming output_dir instead of a silently
+// ignored path.
+const { output_path: _unusedOutputPath, ...BUNDLE_CHARACTER_PROPS } = CHARACTER_PROPS;
+const BUNDLE_ARG_KEYS = [...Object.keys(BUNDLE_CHARACTER_PROPS), "output_dir", "mode", "atlas_format"];
+
+// validate_sheet renders but never writes, so the output and sidecar arguments are taken away too.
+const {
+  output_path: _validateNoPath,
+  include_credits: _validateNoCredits,
+  include_character_json: _validateNoJson,
+  ...CHARACTER_ONLY_PROPS
+} = CHARACTER_PROPS;
+
 const TOOLS = [
   {
     name: "generate_spritesheet",
     description:
-      "Generate a Universal LPC character spritesheet PNG: 13x54 grid of 64px frames (832x3456) with all standard animations (spellcast/thrust/walk/slash/shoot/hurt/climb/idle/jump/sit/emote/run/combat_idle/backslash/halfslash). Custom-animation blocks (wheelchair, oversize weapons) are appended below and can widen the canvas (e.g. 1152/1536px) — exact offsets come back in the result layout for engine integration.",
+      "Generate a Universal LPC character spritesheet PNG: 13x54 grid of 64px frames (832x3456) with all standard animations (spellcast/thrust/walk/slash/shoot/hurt/climb/idle/jump/sit/emote/run/combat_idle/backslash/halfslash). Custom-animation blocks (wheelchair, oversize weapons) are appended below and can widen the canvas up to 1664px (13 columns of 128px) and grow it past 3456px — exact offsets, frame sizes and column counts come back in the result layout for engine integration.",
     inputSchema: { type: "object", properties: CHARACTER_PROPS },
   },
   {
@@ -341,13 +423,58 @@ const TOOLS = [
     },
   },
   {
+    name: "export_character",
+    description:
+      "Generate a character and fan it out into a directory bundle an engine can import: sheet.png + a TexturePacker/Phaser JSON Hash atlas describing every frame rect, plus either one PNG per animation row block (mode=animation) or one PNG per frame (mode=frames), a manifest.json with the full layout and pack revision, and credits sidecars. No ZIP: consumers get paths.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...BUNDLE_CHARACTER_PROPS,
+        output_dir: {
+          type: "string",
+          description:
+            "Directory to write the bundle into (created if missing). Default: lpc-<bodyType>-<mode>-<timestamp>/ under the OS temp directory.",
+        },
+        mode: {
+          type: "string",
+          enum: ["animation", "frames"],
+          description: "animation = one PNG per row block (default). frames = one PNG per frame cell.",
+        },
+        atlas_format: {
+          type: "string",
+          enum: [...ATLAS_FORMATS],
+          description: "Metadata dialect. Default texturepacker (JSON Hash), which Phaser and most importers read.",
+        },
+      },
+    },
+  },
+  {
+    name: "validate_sheet",
+    description:
+      "Audit the layout instead of rendering it: scope=layout checks the port's row-block tables against each other and against the pack's custom-animation blocks (no render, no files), scope=character renders one character in memory and compares painted columns per direction row against the declared frame counts, scope=catalog checks item definitions for animations this port does not know and layers that ship no art for a body type the item claims. Returns ok:false with a `checks` list naming what failed and why.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...CHARACTER_ONLY_PROPS,
+        scope: {
+          type: "string",
+          enum: ["layout", "character", "catalog"],
+          description: "Default layout.",
+        },
+        category: { type: "string", description: "catalog scope: restrict to one selection group." },
+        limit: { type: "integer", description: "catalog scope: max items to inspect. Default 50, max 200." },
+      },
+    },
+  },
+  {
     name: "list_categories",
     description: "List all customizable selection groups (body, hair, head, ears, clothes, legs, shoes, weapon, hat, shield, tail, wings, ...) with item counts. Start here to discover what a character can wear.",
     inputSchema: { type: "object", properties: {} },
   },
   {
     name: "list_items",
-    description: "List the selectable items of one category with exact itemIds, names, pre-sliced variants and valid recolor colors (colors are deduplicated into a response-level `palettes` map, referenced per item).",
+    description:
+      "List the selectable items of one category with exact itemIds, names, pre-sliced variants and valid recolor colors (colors are deduplicated into a response-level `palettes` map, referenced per item). Responses are byte-budgeted: check `truncated`/`nextOffset`, and pass `fields` to shrink them.",
     inputSchema: {
       type: "object",
       properties: {
@@ -356,6 +483,12 @@ const TOOLS = [
         search: { type: "string", description: "Case-insensitive substring filter on itemId or name." },
         limit: { type: "integer", description: "Default 50, max 200." },
         offset: { type: "integer", description: "Pagination offset." },
+        fields: {
+          type: "array",
+          items: { type: "string", enum: [...LIST_ITEM_FIELDS] },
+          description:
+            'Which per-item keys to emit. Default: all. Use ["itemId","name"] to list a large category cheaply.',
+        },
       },
       required: ["category"],
     },
@@ -375,27 +508,189 @@ const TOOLS = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Tool metadata: display titles, risk hints, and result schemas
+//
+// Annotations default to the unsafe end of the spectrum when they are absent — a client must
+// assume a tool it has no hints about can destroy data and reach the network. Saying otherwise is
+// the point. `outputSchema` is declared only where the payload shape is stable; the render tools
+// return `layout`, which mirrors describeLayout, and a hand-written twin schema would rot.
+// ---------------------------------------------------------------------------
+
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const WRITES_FILE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+
+const STR_SCHEMA = { type: "string" };
+const INT_SCHEMA = { type: "integer" };
+const BOOL_SCHEMA = { type: "boolean" };
+const STRING_ARRAY = { type: "array", items: STR_SCHEMA };
+
+const TOOL_META = {
+  generate_spritesheet: { title: "Generate spritesheet", annotations: WRITES_FILE },
+  get_animation: { title: "Crop one animation", annotations: WRITES_FILE },
+  get_preview: { title: "Preview animation strip", annotations: WRITES_FILE },
+  export_character: { title: "Export engine bundle", annotations: WRITES_FILE, outputSchema: {
+    type: "object",
+    properties: {
+      mode: STR_SCHEMA,
+      outputDir: STR_SCHEMA,
+      image: { type: "object", properties: { width: INT_SCHEMA, height: INT_SCHEMA, frameSize: INT_SCHEMA }, required: ["width", "height", "frameSize"] },
+      frames: INT_SCHEMA,
+      files: STRING_ARRAY,
+      atlas: STR_SCHEMA,
+      manifest: STR_SCHEMA,
+      characterJson: STR_SCHEMA,
+      warnings: STRING_ARRAY,
+    },
+    required: ["mode", "outputDir", "image", "files", "atlas", "manifest", "warnings"],
+  } },
+  validate_sheet: { title: "Validate sheet layout", annotations: READ_ONLY, outputSchema: {
+    type: "object",
+    properties: {
+      scope: STR_SCHEMA,
+      ok: BOOL_SCHEMA,
+      summary: { type: "object", properties: { fail: INT_SCHEMA, warn: INT_SCHEMA, pass: INT_SCHEMA }, required: ["fail", "warn", "pass"] },
+      checks: { type: "array", items: { type: "object", properties: { id: STR_SCHEMA, status: { type: "string", enum: ["pass", "warn", "fail"] }, detail: STR_SCHEMA }, required: ["id", "status", "detail"] } },
+      warnings: STRING_ARRAY,
+    },
+    required: ["scope", "ok", "summary", "checks", "warnings"],
+  } },
+  list_categories: { title: "List selection groups", annotations: READ_ONLY, outputSchema: {
+    type: "object",
+    properties: {
+      bodyTypes: STRING_ARRAY,
+      note: STR_SCHEMA,
+      categories: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { category: STR_SCHEMA, items: INT_SCHEMA, colorable: INT_SCHEMA, example: STRING_ARRAY },
+          required: ["category", "items", "colorable", "example"],
+        },
+      },
+    },
+    required: ["bodyTypes", "categories"],
+  } },
+  list_items: { title: "List items in a group", annotations: READ_ONLY, outputSchema: {
+    type: "object",
+    properties: {
+      category: STR_SCHEMA,
+      total: INT_SCHEMA,
+      unfilteredTotal: INT_SCHEMA,
+      showing: { type: "object", properties: { offset: INT_SCHEMA, count: INT_SCHEMA }, required: ["offset", "count"] },
+      palettes: { type: "object", additionalProperties: STRING_ARRAY },
+      items: { type: "array", items: { type: "object" } },
+      bytes: INT_SCHEMA,
+      truncated: BOOL_SCHEMA,
+      nextOffset: INT_SCHEMA,
+      oversizedItem: BOOL_SCHEMA,
+      note: STR_SCHEMA,
+    },
+    required: ["category", "total", "showing", "palettes", "items", "bytes"],
+  } },
+  list_palettes: { title: "List color palettes", annotations: READ_ONLY, outputSchema: {
+    type: "object",
+    properties: { note: STR_SCHEMA, materials: { type: "object" } },
+    required: ["note", "materials"],
+  } },
+  list_animations: { title: "List animations", annotations: READ_ONLY, outputSchema: {
+    type: "object",
+    properties: {
+      sheetLayout: STR_SCHEMA,
+      standard: { type: "object" },
+      custom: { type: "object" },
+      customNote: STR_SCHEMA,
+    },
+    required: ["sheetLayout", "standard", "custom", "customNote"],
+  } },
+};
+
+for (const tool of TOOLS) {
+  const meta = TOOL_META[tool.name];
+  // A tool added without metadata would ship with no risk hints and no title: fail loudly at
+  // startup instead. `test/mcp-client-test.mjs` pins the tool-name set, so this cannot go unseen.
+  if (!meta) throw new Error(`Tool "${tool.name}" has no TOOL_META entry (title/annotations).`);
+  Object.assign(tool, meta);
+}
+
+const SCHEMA_BY_TOOL = new Map(
+  TOOLS.filter((t) => t.outputSchema).map((t) => [t.name, t.outputSchema]),
+);
+
+/** Ceiling on a PNG inlined as a `type:"image"` result block; see jsonResultWithImage. */
+const MAX_INLINE_PNG_BYTES = 64 * 1024;
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args = {} } = request.params;
+  const schema = SCHEMA_BY_TOOL.get(name);
   try {
     switch (name) {
       case "list_categories":
-        return jsonResult(listCategories());
+        return jsonResult(listCategories(), schema);
       case "list_items":
-        return jsonResultOrError(listItems(args));
+        return jsonResultOrError(listItems(args), schema);
       case "list_palettes":
-        return jsonResultOrError(listPalettes(args));
+        return jsonResultOrError(listPalettes(args), schema);
       case "list_animations":
-        return jsonResult(listAnimations());
+        return jsonResult(listAnimations(), schema);
       case "generate_spritesheet":
         return jsonResult(
           await renderAndSave(engine, args, {
+            serverVersion: SERVER_VERSION,
             defaultName: "lpc-character",
             preWarnings: unknownArgWarnings(args, CHAR_ARG_KEYS),
             extract: ({ canvas, layout }) => ({ canvas, layout }),
           }),
+          schema,
+        );
+      case "validate_sheet": {
+        const scope = args.scope ?? "layout";
+        const VALIDATE_ARG_KEYS = [
+          ...Object.keys(CHARACTER_ONLY_PROPS),
+          "scope",
+          "category",
+          "limit",
+        ];
+        const preWarnings = unknownArgWarnings(args, VALIDATE_ARG_KEYS);
+        let result;
+        if (scope === "layout") {
+          result = validateLayout(catalog);
+        } else if (scope === "catalog") {
+          if (args.category && !catalog.byTypeName.has(args.category)) {
+            return jsonError({
+              error: `Unknown category "${args.category}".`,
+              validCategories: catalog.listTypeNames(),
+            });
+          }
+          result = validateCatalog(catalog, { category: args.category, limit: args.limit ?? 50 });
+        } else if (scope === "character") {
+          const { bodyType, selections } = buildSelections(engine, args);
+          result = await validateCharacter(engine, args, { bodyType, selections });
+        } else {
+          return jsonError({ error: `Unknown scope "${scope}". Valid: layout, character, catalog.` });
+        }
+        const summary = result.summary ?? summarize(result.checks);
+        return jsonResult({
+          scope,
+          ok: summary.fail === 0,
+          pack: result.pack,
+          summary,
+          checks: result.checks,
+          ...(result.character ? { character: result.character } : {}),
+          ...(result.scope ? { inspected: result.scope } : {}),
+          ...(result.rowBlocks !== undefined ? { rowBlocks: result.rowBlocks } : {}),
+          warnings: [...preWarnings, ...(result.warnings ?? [])],
+        }, schema);
+      }
+      case "export_character":
+        return jsonResultOrError(
+          await exportBundle(engine, args, {
+            serverVersion: SERVER_VERSION,
+            preWarnings: unknownArgWarnings(args, BUNDLE_ARG_KEYS),
+          }),
+          schema,
         );
       case "get_animation": {
         const animation = args.animation;
@@ -406,6 +701,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const preWarnings = unknownArgWarnings(args, [...CHAR_ARG_KEYS, "animation"]);
         return jsonResult(
           await renderAndSave(engine, args, {
+            serverVersion: SERVER_VERSION,
             defaultName: `lpc-${animation}`,
             preWarnings,
             extract: ({ canvas, layout }) => {
@@ -414,7 +710,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 if (!block) {
                   if (!customAnimations[animation]) {
                     throw new CharacterRequestError(
-                      `Unknown animation "${animation}". Standard names: ${Object.keys(ANIMATION_CONFIGS).join(", ")}. Custom names: ${Object.keys(customAnimations).join(", ")}. See list_animations.`,
+                      `Unknown animation "${animation}". Standard names: ${Object.keys(ANIMATION_CONFIGS).join(", ")}. Custom names: ${engine.customAnimationNames().join(", ")}. See list_animations.`,
                     );
                   }
                   const usingItems = [];
@@ -464,6 +760,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               };
             },
           }),
+          schema,
         );
       }
       case "get_preview": {
@@ -483,8 +780,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (args.scale !== undefined && (!Number.isInteger(args.scale) || args.scale < 1 || args.scale > 8)) {
           throw new CharacterRequestError("scale must be an integer between 1 and 8.");
         }
-        return jsonResult(
+        return jsonResultWithImage(
           await renderAndSave(engine, args, {
+            serverVersion: SERVER_VERSION,
             defaultName: `lpc-preview-${animation}-${direction}`,
             preWarnings: unknownArgWarnings(args, [...CHAR_ARG_KEYS, "animation", "direction", "scale"]),
             extract: ({ canvas }) => {
@@ -500,6 +798,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               return {
                 canvas: out,
                 layout: null,
+                inline: true,
                 extra: {
                   animation,
                   direction,
@@ -510,6 +809,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               };
             },
           }),
+          schema,
         );
       }
       default:
@@ -520,16 +820,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-function jsonResult(payload) {
-  return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
+/**
+ * Responses are sent twice on purpose: pretty JSON text any client can read, and
+ * `structuredContent` for clients that validate a declared `outputSchema`. The low-level Server
+ * does not check conformance itself, so the pair is maintained here rather than hoped for.
+ */
+function jsonResult(payload, schema) {
+  const { inlinePng, ...clean } = payload;
+  return {
+    content: [{ type: "text", text: JSON.stringify(clean, null, 2) }],
+    ...(schema ? { structuredContent: clean } : {}),
+  };
+}
+
+/**
+ * `get_preview` crops are 2-4 KB, so the client can look at the character without opening a file.
+ * A full sheet is 188-280 KB, which is not something to base64 into a conversation — the path is
+ * the right primitive for those, so anything over the cap comes back as text only.
+ */
+function jsonResultWithImage(payload, schema) {
+  const result = jsonResult(payload, schema);
+  if (payload.inlinePng && payload.inlinePng.length <= MAX_INLINE_PNG_BYTES) {
+    result.content.push({
+      type: "image",
+      data: payload.inlinePng.toString("base64"),
+      mimeType: "image/png",
+    });
+  }
+  return result;
 }
 
 function jsonError(payload) {
   return { isError: true, content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
 }
 
-function jsonResultOrError(payload) {
-  return payload?.error ? jsonError(payload) : jsonResult(payload);
+function jsonResultOrError(payload, schema) {
+  return payload?.error ? jsonError(payload) : jsonResult(payload, schema);
 }
 
 const transport = new StdioServerTransport();

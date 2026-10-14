@@ -37,10 +37,11 @@ function callTool(name, args = {}) {
   return globalThis.mcpClient.callTool({ name, arguments: args });
 }
 
-test("server exposes 7 tools", async () => {
+test("server exposes 9 tools", async () => {
   const { tools } = await globalThis.mcpClient.listTools();
   const names = tools.map((t) => t.name).sort();
   assert.deepEqual(names, [
+    "export_character",
     "generate_spritesheet",
     "get_animation",
     "get_preview",
@@ -48,6 +49,7 @@ test("server exposes 7 tools", async () => {
     "list_categories",
     "list_items",
     "list_palettes",
+    "validate_sheet",
   ]);
 });
 

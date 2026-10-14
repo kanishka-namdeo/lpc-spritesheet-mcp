@@ -9,7 +9,7 @@ project's highest-volume support path.
 
 ## Ownership
 
-- `workflows/ci.yml` — trigger, matrix, asset-pack checkout, `npm test`, graceful-failure check.
+- `workflows/ci.yml` — trigger, matrix, pinned asset-pack checkout, `npm test`, graceful-failure check.
 - `dependabot.yml` — weekly version updates for `npm` (root lockfile) and
   `github-actions` (`actions/checkout@v4`, `actions/setup-node@v4`), plus
   `applies-to: security-updates` grouping per ecosystem.
@@ -29,11 +29,18 @@ project's highest-volume support path.
 
 ## Local Contracts
 
-- **The asset pack is provisioned, never vendored.** CI checks out
-  `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator` at depth 1 into
-  `lpc-generator-src` and passes it as `LPC_ASSETS_DIR`. That env var is load-bearing: without it
+- **The asset pack is provisioned, never vendored — and the checkout is pinned.** The CI
+  asset-pack checkout (LPC_ASSETS_PACK_REVISION, referenced by the `ref:` comment in `ci.yml`) is
+  `553ba7562534cbf32e7d9a502660f569d6b26512` (`depth: 1`): CI checks out
+  `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator` at that ref into
+  `lpc-generator-src` and passes it as
+  `LPC_ASSETS_DIR`. That env var is load-bearing: without it
   `test/run-tests.mjs` looks only for a sibling clone and the suite fails. Keep the checkout and the
-  env var paired.
+  env var paired. The pin exists because `test/golden.json` records SHA-256 hashes of renders made
+  from that exact art; bumping the ref requires re-running `npm run golden` and committing the
+  re-recorded file in the same pass. `scripts/setup-assets.mjs` mirrors the pin with `LPC_ASSETS_REF`
+  and prints the revision installed. The golden assertion runs inside `npm test`; CI adds no
+  separate golden step.
 - **The matrix is the portability contract:** Node 20 and 22 on `ubuntu-latest` and
   `windows-latest`, `fail-fast: false`. Path handling and `@napi-rs/canvas` behavior are the reason
   Windows is in it. Do not drop a leg to make CI green.
@@ -59,7 +66,7 @@ project's highest-volume support path.
   must keep saying so in its `description` (the `child` body ships only
   hurt/idle/jump/sit/slash/walk, so other rows are empty by design). Do not soften that into a bug.
 - **Facts in templates and the PR template are checkout-verifiable.** Commands, file paths, test
-  counts, the three version-declaration sites, and the `1.1.0` value must match the repo; URLs are
+  counts, the three version-declaration sites, and the `1.3.0` value must match the repo; URLs are
   limited to this repo's canonical GitHub URL and the upstream pack. No badges, no links to
   services this project does not use, no mention of Discussions or tooling that is not enabled here.
 
@@ -68,14 +75,16 @@ project's highest-volume support path.
 - Prefer fixing the cause in `src/` or `test/` over touching CI. The pipeline is deliberately thin.
 - Keep the workflow `shell: bash` steps portable; the same file runs on Windows runners.
 - When the tool surface, the result payload shape, or the asset-discovery order changes, re-read
-  `ISSUE_TEMPLATE/*.yml` in the same pass: those forms quote the seven tool names, the payload keys,
-  and the three candidate pack locations.
+  `ISSUE_TEMPLATE/*.yml` in the same pass: those forms quote the nine tool names, the payload keys
+  (`pack: {revision}`, `truncated`/`nextOffset`, `structuredContent`), and the three candidate pack
+  locations.
 - The PR template mirrors `CONTRIBUTING.md`; if the acceptance gate changes, change both.
 
 ## Verification
 
 Push or open a PR — CI is the check. Reproduce locally by running `npm ci`, then `npm test` with
-`LPC_ASSETS_DIR` set, then the no-assets command. No check here validates these files: parse the
+`LPC_ASSETS_DIR` set to the pinned pack revision (the golden gate asserts it), then the no-assets
+command. No check here validates these files: parse the
 YAML with any loader and eyeball the form picker; Dependabot only reports schema problems on the
 default branch.
 

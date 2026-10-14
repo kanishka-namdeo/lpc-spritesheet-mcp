@@ -23,6 +23,10 @@ jobs:
           repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
           path: lpc-generator-src
           depth: 1
+          # Pinned: test/golden.json holds SHA-256 hashes of renders made from this pack, and a
+          # hash is only a gate if the art behind it is fixed. Bump this together with
+          # LPC_ASSETS_PACK_REVISION in .github/AGENTS.md, then re-record with `npm run golden`.
+          ref: 553ba7562534cbf32e7d9a502660f569d6b26512
 
       - uses: actions/setup-node@v7
         with:

@@ -22,7 +22,10 @@ body:
         what exists and reports the rest in `warnings`. Example: the `child` body
         type ships art for only `hurt`, `idle`, `jump`, `sit`, `slash` and `walk`,
         so the other rows of a child sheet come back empty **by design**
-        (see `docs/ARCHITECTURE.md`). Those belong upstream. Use this form when
+        (see `docs/ARCHITECTURE.md`). The same shows up in `list_animations`:
+        the custom blocks `thrust_128` and `whip_oversize` carry `available:
+        false` because they are defined upstream but no item in the pack
+        provides them — they are advertised, not hidden. Those belong upstream. Use this form when
         the pack is not being found at all, when it is found but the render is
         wrong compared with the upstream app, or when you cannot tell which case
         you are in.
@@ -114,8 +117,10 @@ body:
     attributes:
       label: How was the pack acquired?
       description: >-
-        The clone is unpinned (`--depth 1` at the pack's default branch), so the
-        revision you hold may differ from another user's.
+        `npm run setup-assets` clones the pack's default branch unless you set
+        `LPC_ASSETS_REF` to pin a revision, and either way it prints the
+        revision it installed. CI and `test/golden.json` pin one exact revision,
+        so the one you hold may differ.
       options:
         - "`npm run setup-assets`"
         - "Manual `git clone` of the upstream pack"
@@ -129,9 +134,10 @@ body:
     attributes:
       label: Pack revision, if it is a git clone
       description: >-
-        Output of `git -C <pack directory> rev-parse --short HEAD`. Nothing in
-        this repo records which asset revision was fetched, so this is the only
-        way to compare packs.
+        Output of `git -C <pack directory> rev-parse --short HEAD`. Render
+        results also report it as `pack.revision`, and `test/golden.json`
+        records the revision the golden gate and CI are pinned to — that is how
+        we compare your pack with the one everything else was verified against.
       placeholder: "e.g. 3f9c2a1 (or: not a git clone)"
     validations:
       required: false
@@ -162,4 +168,6 @@ body:
         - label: "The same character renders differently in the upstream web app"
           required: false
         - label: "`list_items` / `list_animations` return the item or animation I expected"
+          required: false
+        - label: "A `list_items` result that looked incomplete was checked against `truncated`/`nextOffset` (responses are byte-budgeted, so an item list can be paginated)"
           required: false

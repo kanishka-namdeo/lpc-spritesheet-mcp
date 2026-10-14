@@ -1,6 +1,6 @@
 {
   "name": "lpc-spritesheet-mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "MCP server that generates Universal LPC character spritesheets headlessly (no browser) from the LiberatedPixelCup asset pack: 657 items, 6 body types, palette recoloring, 15 standard animations plus oversize custom ones",
   "keywords": [
     "mcp",
@@ -39,8 +39,9 @@
     "showcase": "node scripts/make-showcase.mjs",
     "diagrams": "node scripts/make-architecture-svg.mjs",
     "demo": "node scripts/make-demo-gif.mjs",
+    "golden": "node scripts/make-golden.mjs",
     "assets": "npm run diagrams && npm run showcase && npm run demo",
-    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/smoke-canvas.mjs"
+    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/mcp-surface-test.mjs test/golden-test.mjs test/smoke-canvas.mjs"
   },
   "repository": {
     "type": "git",

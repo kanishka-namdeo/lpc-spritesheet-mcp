@@ -19,8 +19,9 @@ body:
     attributes:
       label: Which tool, with which arguments
       description: >-
-        One of generate_spritesheet, get_animation, get_preview,
-        list_categories, list_items, list_palettes, list_animations — plus the
+        One of generate_spritesheet, get_animation, get_preview, export_character,
+        validate_sheet, list_categories, list_items, list_palettes,
+        list_animations — plus the
         exact arguments object you passed.
       value: |
         tool:
@@ -50,8 +51,11 @@ body:
       label: The FULL JSON payload the tool returned
       description: >-
         Everything in the result, including `warnings`, the `selections` echo,
-        `output`, `credits`, `rows`/`frames`/`offsets` if present, and the text
-        of any `isError: true` response. Do not trim it.
+        `output`, `credits`, the `pack: {revision}` every render reports,
+        `rows`/`frames`/`offsets` if present, and the text of any `isError: true`
+        response. List tools, `export_character` and `validate_sheet` also return a
+        matching `structuredContent` — paste it too; for `list_items` include
+        `bytes`/`truncated`/`nextOffset` if present. Do not trim it.
       render: json
       value: |
         ```json
@@ -130,7 +134,7 @@ body:
         The installed version (`npm view lpc-spritesheet-mcp version` gives the
         newest published one; the `Server` info in this repo's `src/index.js`
         gives the source version). Say if the two differ.
-      placeholder: "installed 1.1.0 / latest on npm 1.1.0"
+      placeholder: "installed 1.3.0 / latest on npm 1.3.0"
     validations:
       required: true
       max_length: 120

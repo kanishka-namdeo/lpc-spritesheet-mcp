@@ -16,10 +16,13 @@ Closes #
 
 ## Acceptance gate
 
-- [ ] `npm test` passes locally. That is the whole gate: 19 engine tests
+- [ ] `npm test` passes locally. That is the whole gate: 25 engine tests
       (`test/run-tests.mjs`), 16 end-to-end stdio MCP tests
-      (`test/mcp-client-test.mjs`), plus the canvas smoke script
-      (`test/smoke-canvas.mjs`) — 36 passing items as of `1.1.0`.
+      (`test/mcp-client-test.mjs`), 15 end-to-end tests of the 1.3.0 tool surface
+      (`test/mcp-surface-test.mjs`), the golden-render determinism gate
+      (`test/golden-test.mjs`, 9 items, comparing against `test/golden.json`),
+      plus the canvas smoke script (`test/smoke-canvas.mjs`) — 66 passing items
+      as of `1.3.0`.
 - [ ] A **bug fix ships a regression test** that fails without the fix
       (`CONTRIBUTING.md` makes this binding; new behavior needs a test too).
 - [ ] If a change alters visible rendering, the committed README showcase
@@ -31,9 +34,14 @@ Closes #
 - [ ] Attribution is intact: renders still write `<name>-credits.csv` and
       `<name>-credits.txt` beside the PNG. Dropping them is a licensing
       regression.
+- [ ] If an intended change alters rendering, `test/golden.json` was re-recorded
+      with `npm run golden` and its diff is in this PR — never hand-edit it.
+      The same applies to bumping the asset-pack `ref` in
+      `.github/workflows/ci.yml`: the pin and the re-recorded golden file
+      belong to one pass.
 - [ ] If the version is bumped, all three declarations agree — `package.json`,
       the `Server` info in `src/index.js`, and the newest `CHANGELOG.md` heading
-      (currently all `1.1.0`).
+      (currently all `1.3.0`).
 - [ ] Anything that changes the engine's behavior is matched against upstream or
       recorded as a documented divergence in `docs/ARCHITECTURE.md`, and that doc
       was updated in this same pass.
@@ -51,16 +59,20 @@ LPC_ASSETS_DIR=/path/to/lpc-generator-src npm test   # or a sibling ../lpc-gener
 npm run setup-assets                                # clones into ~/.lpc-spritesheet
 ```
 
-CI (`.github/workflows/ci.yml`) runs that on Node 20 and 22 across
-`ubuntu-latest` and `windows-latest`, and separately asserts that with
-`LPC_ASSETS_DIR=/nonexistent` the server exits `1` and prints
-`asset pack is not installed` on stderr.
+CI (`.github/workflows/ci.yml`) checks out the pack at a pinned ref, runs
+that on Node 20 and 22 across `ubuntu-latest` and `windows-latest`, and
+separately asserts that with `LPC_ASSETS_DIR=/nonexistent` the server exits
+`1` and prints `asset pack is not installed` on stderr. `test/golden.json`
+records that revision, so local runs need the same pack (install it with
+`LPC_ASSETS_REF=<sha> npm run setup-assets`).
 
 ## Evidence for a rendering change
 
-Paste the tool result payload (rows, frame counts, offsets, `warnings`) and, if
-relevant, before/after images. Pixel assertions are the exception, not the rule —
-the suite mostly asserts on the JSON.
+Paste the tool result payload (rows, frame counts, offsets, `warnings`, and
+the `pack: {revision}` every render now reports) and, if
+relevant, before/after images. Pixel assertions are no longer the exception:
+the golden gate hashes seven canonical renders, so a rendering change is
+expected to show up as a `test/golden.json` diff.
 
 ## Notes for the reviewer
 

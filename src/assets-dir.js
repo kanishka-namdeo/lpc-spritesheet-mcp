@@ -1,6 +1,7 @@
 // Locates the external Universal LPC asset pack. The server and the dev tooling
 // (test/, scripts/) share this one implementation so the documented discovery
 // order can never diverge between them.
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,4 +30,25 @@ export function assetCandidates() {
 
 export function findAssetsDir() {
   return assetCandidates().find(hasAssets) ?? null;
+}
+
+const revisionByDir = new Map();
+
+/**
+ * Commit the pack clone is checked out at, or null when it is not a git checkout.
+ * Attribution and reproducibility both hinge on knowing which asset revision produced a
+ * render, and `npm run setup-assets` clones unpinned, so results report what was actually read.
+ * Never throws: a hand-copied pack directory is a supported install.
+ */
+export function packRevision(assetsDir) {
+  if (revisionByDir.has(assetsDir)) return revisionByDir.get(assetsDir);
+  let revision = null;
+  try {
+    const res = spawnSync("git", ["-C", assetsDir, "rev-parse", "HEAD"], { encoding: "utf8" });
+    if (res.status === 0 && /^[0-9a-f]{40}$/.test(res.stdout.trim())) revision = res.stdout.trim();
+  } catch {
+    revision = null;
+  }
+  revisionByDir.set(assetsDir, revision);
+  return revision;
 }

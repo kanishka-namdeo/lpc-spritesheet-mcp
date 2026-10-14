@@ -10,7 +10,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { assetCandidates, hasAssets } from "../src/assets-dir.js";
+import { assetCandidates, hasAssets, packRevision } from "../src/assets-dir.js";
 
 const REPO = "https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator.git";
 
@@ -19,12 +19,14 @@ if (process.env.LPC_ASSETS_DIR) {
   target = path.resolve(process.env.LPC_ASSETS_DIR);
   if (hasAssets(target)) {
     console.log(`Assets already present at ${target} — nothing to do.`);
+    console.log(`Pack revision: ${packRevision(target) ?? "not a git checkout"}`);
     process.exit(0);
   }
 } else {
   const present = assetCandidates().find(hasAssets);
   if (present) {
     console.log(`Assets already present at ${present} — nothing to do.`);
+    console.log(`Pack revision: ${packRevision(present) ?? "not a git checkout"}`);
     process.exit(0);
   }
   target = path.join(os.homedir(), ".lpc-spritesheet", "lpc-generator-src");
@@ -41,4 +43,14 @@ console.log(`Cloning the LPC asset pack into ${target} ...`);
 console.log("(shallow clone, ~350 MB — this can take a few minutes)");
 fs.mkdirSync(path.dirname(target), { recursive: true });
 execSync(`git clone --depth 1 "${REPO}" "${target}"`, { stdio: "inherit" });
-console.log(`\nDone. The server will find the assets automatically; restart your MCP client if it is already running.`);
+
+// test/golden.json hashes renders made from one pack revision, so a reproducible install can pin it.
+const ref = process.env.LPC_ASSETS_REF;
+if (ref) {
+  console.log(`Checking out pinned revision ${ref} ...`);
+  execSync(`git -C "${target}" fetch --depth 1 origin "${ref}"`, { stdio: "inherit" });
+  execSync(`git -C "${target}" checkout --detach FETCH_HEAD`, { stdio: "inherit" });
+}
+
+console.log(`\nPack revision now installed: ${packRevision(target) ?? "not a git checkout"}`);
+console.log("Done. The server will find the assets automatically; restart your MCP client if it is already running.");
