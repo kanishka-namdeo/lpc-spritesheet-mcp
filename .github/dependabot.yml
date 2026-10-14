@@ -40,8 +40,8 @@ updates:
         patterns:
           - "*"
 
-  # Action pins used by .github/workflows/ci.yml: actions/checkout@v4 and
-  # actions/setup-node@v4. Nothing else is referenced by any workflow here.
+  # Action pins used by .github/workflows/ci.yml: actions/checkout@v7 and
+  # actions/setup-node@v7. Nothing else is referenced by any workflow here.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

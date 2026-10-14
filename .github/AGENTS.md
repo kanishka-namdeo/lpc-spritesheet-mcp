@@ -11,7 +11,7 @@ project's highest-volume support path.
 
 - `workflows/ci.yml` — trigger, matrix, pinned asset-pack checkout, `npm test`, graceful-failure check.
 - `dependabot.yml` — weekly version updates for `npm` (root lockfile) and
-  `github-actions` (`actions/checkout@v4`, `actions/setup-node@v4`), plus
+  `github-actions` (`actions/checkout@v7`, `actions/setup-node@v7`), plus
   `applies-to: security-updates` grouping per ecosystem.
 - `ISSUE_TEMPLATE/config.yml` — blank issues disabled; the three contact links
   (asset-pack install, upstream pack, security policy).
