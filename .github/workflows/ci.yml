@@ -15,16 +15,16 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         node: [20, 22]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check out upstream asset pack (required by the test suite)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
           path: lpc-generator-src
           depth: 1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
 
