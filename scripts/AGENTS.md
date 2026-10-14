@@ -8,7 +8,7 @@ server's runtime — and only `setup-assets.mjs` is in the published tarball, as
 ## Ownership
 
 - `setup-assets.mjs` (`npm run setup-assets`, bin `lpc-spritesheet-setup`) — acquires the external
-  LPC asset pack.
+  LPC asset pack, optionally at the revision `LPC_ASSETS_REF` names, and prints what it installed.
 - `make-showcase.mjs` (`npm run showcase`) — regenerates every rendered image the README embeds:
   `hero.png`, `gallery.png`, `walk-strip.png`, `sheet-katana.png`, `logo.png`,
   `social-preview.png`, plus the `showcase-credits.csv`/`.txt` sidecars.
@@ -16,7 +16,11 @@ server's runtime — and only `setup-assets.mjs` is in the published tarball, as
   system picture that survives npm's markdown renderer. Needs no asset pack.
 - `make-demo-gif.mjs` (`npm run demo`) — records a real stdio session against `src/index.js` and
   encodes `docs/img/demo.gif`, `demo-poster.png` and `demo-credits.csv`/`.txt`.
-- `npm run assets` runs all three generators in that order.
+- `make-golden.mjs` (`npm run golden`) — the one script that writes outside `docs/img/`: it renders
+  the canonical specs in `test/golden-specs.mjs` and rewrites `test/golden.json` with hashes,
+  dimensions, sorted warnings, credit counts and the pack revision. `test/golden-test.mjs` is the
+  only reader. It is not part of `npm run assets` because it is a gate input, not documentation art.
+- `npm run assets` runs the three image generators in that order.
 
 ## Local Contracts
 
@@ -24,8 +28,11 @@ server's runtime — and only `setup-assets.mjs` is in the published tarball, as
   contains both `sheet_definitions/` and `spritesheets/`, then exits without touching it. That probe
   is `hasAssets`/`assetCandidates` from `src/assets-dir.js` — the same functions the server uses, so
   the two can never disagree about what "installed" means. It requires `git` on PATH and fails
-  loudly without it. The clone is unpinned (`--depth 1` at the pack's default branch) and no script
-  records the revision fetched, so nothing here may claim a reproducible asset version.
+  loudly without it. A plain clone is `--depth 1` at the pack's default branch; `LPC_ASSETS_REF`
+  fetches a named revision and detaches to it, and the script prints the resulting commit. The
+  revision is also what `packRevision()` puts in every render result and what `test/golden.json`
+  records, so an install is no longer anonymous — but a bare `npm run setup-assets` still tracks
+  upstream's default branch, so never claim a *user's* pack is the pinned one.
 - **Anything needing the pack imports `findAssetsDir()`** from `src/assets-dir.js` and exits with a
   "run `npm run setup-assets`" message when it returns null. Do not re-implement the search order in
   a script.
@@ -68,9 +75,11 @@ server's runtime — and only `setup-assets.mjs` is in the published tarball, as
 
 ## Verification
 
-No test covers this folder. Correctness is proven by the downstream checks each script enables:
-`npm test` after `setup-assets`, and `npm run assets` followed by two-run `sha1sum` comparison for
-the images. `npm run diagrams` self-checks its own layout bounds and fails if they do not hold.
+No test drives these scripts. `test/golden-test.mjs` does read `make-golden.mjs`'s output, so a broken
+generator fails the suite — the image scripts have no such check. Correctness of the images is proven
+by the downstream checks each script enables: `npm test` after `setup-assets`, and `npm run assets`
+followed by two-run `sha1sum` comparison for the images. `npm run diagrams` self-checks its own layout
+bounds and fails if they do not hold.
 
 ## Child DOX Index
 

@@ -64,17 +64,19 @@ const NODES = [
   ]),
   n("index", 266, 76, 306, 156, "group", [
     t("src/index.js", 12.5, "bold"),
-    t("server bootstrap · stdio JSON-RPC · 7 tools", 8.8, "normal", C.dim),
-  ], { children: ["tools_discovery", "tools_render"] }),
-  n("tools_discovery", 280, 114, 278, 48, "box", [
-    t("discovery tools", 8.9, "bold"),
-    t("list_categories · list_items", 8.6, "normal", C.dim),
-    t("list_palettes · list_animations", 8.6, "normal", C.dim),
+    t("server bootstrap · stdio JSON-RPC · 9 tools", 8.8, "normal", C.dim),
+  ], { children: ["tools_discovery", "tools_render", "tools_bundle"] }),
+  n("tools_discovery", 280, 114, 278, 34, "box", [
+    t("discovery: list_categories · list_items", 8.4, "bold"),
+    t("list_palettes · list_animations", 8.4, "normal", C.dim),
   ]),
-  n("tools_render", 280, 170, 278, 48, "render", [
-    t("render tools", 8.9, "bold"),
-    t("generate_spritesheet", 8.6, "normal", C.dim),
-    t("get_animation · get_preview", 8.6, "normal", C.dim),
+  n("tools_render", 280, 152, 278, 34, "render", [
+    t("render: generate_spritesheet", 8.4, "bold"),
+    t("get_animation · get_preview", 8.4, "normal", C.dim),
+  ]),
+  n("tools_bundle", 280, 190, 278, 34, "box", [
+    t("export · audit", 8.4, "bold"),
+    t("export_character · validate_sheet", 8.4, "normal", C.dim),
   ]),
   n("character", 616, 80, 186, 122, "box", [
     t("src/character.js", 11.5, "bold"),
@@ -156,11 +158,11 @@ const NODES = [
     t("the only pixel backend", 8.4, "normal", C.dim),
   ]),
   n("outpanel", 500, 512, 468, 84, "group", [
-    t("written beside the output path (default <repo>/output/)", 8.6, "bold"),
+    t("written beside the output path (default: <temp dir>/lpc-spritesheet/)", 8.6, "bold"),
   ], { children: ["out_png", "out_credits", "out_char"] }),
   n("out_png", 514, 540, 138, 48, "box", [
     t("<name>.png", 11, "bold"),
-    t("the spritesheet", 8.4, "normal", C.dim),
+    t("sheet · or export bundle", 8.2, "normal", C.dim),
   ]),
   n("out_credits", 664, 540, 146, 48, "box", [
     t("<name>-credits.csv", 9.2, "bold"),
@@ -521,7 +523,7 @@ function render() {
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS.width}" height="${CANVAS.height}" viewBox="0 0 ${CANVAS.width} ${CANVAS.height}" font-family="${FONT}" role="img" aria-labelledby="arch-title arch-desc">`,
     `  <title id="arch-title">lpc-spritesheet-mcp system architecture</title>`,
-    `  <desc id="arch-desc">An MCP client calls seven tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>`,
+    `  <desc id="arch-desc">An MCP client calls nine tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js; export_character fans the same render into a bundle directory and validate_sheet audits the tables without writing anything. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>`,
     `  <defs>`,
     `    <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">`,
     `      <path d="M0 0 L8 3.5 L0 7 z" fill="${C.arrow}"/>`,

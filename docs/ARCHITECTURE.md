@@ -24,11 +24,15 @@ included. The layer above the engine has no upstream counterpart at all — see
 | `sources/canvas/renderer.ts:716 extractAnimationFromCanvas` | `src/engine/sheet.js:345 extractAnimation` (crops `row*num` rows at 64px, full 832 width) — backs `get_animation` |
 | `sources/state/zip.ts:149-154` (custom-block slice at the running `y` below SHEET_HEIGHT) | `src/engine/sheet.js:362 extractCustomAnimation` (crop rect comes from `layout.custom`, so it also handles 128/192px blocks) — backs `get_animation` for custom names |
 | `sources/canvas/preview-animation.ts` | `src/engine/sheet.js:381 extractPreviewStrip` (one direction's playback cycle laid out horizontally) — backs `get_preview` and the showcase |
-| `sources/utils/zip-helpers.ts:363 extractFramesFromAnimation` | `src/engine/sheet.js:408 extractFrame` (single frame) — used by the showcase script, not by any tool |
+| `sources/utils/zip-helpers.ts:363 extractFramesFromAnimation` | `src/engine/sheet.js:408 extractFrame` (single frame) — backs `export_character mode:"frames"` and the showcase script |
+| `sources/utils/zip-helpers.ts` custom-block frame slice | `src/engine/sheet.js extractCustomFrame` (cell rect from `layout.custom`, so 128/192px blocks crop correctly) — backs `export_character mode:"frames"` |
+| `sources/state/zip.ts:70-198` split-by-animation, `:250` split-by-item, `:647-690` export-individual-frames (all four ZIP modes) | `src/export.js` (directory tree, not a ZIP) — backs `export_character` |
+| `sources/utils/fileName.ts` (zPos-prefixed names) | `src/export.js` uses `<animation>_<direction>_<n>` keys instead; the zPos-prefixed per-item mode is not ported |
 | `sources/utils/credits.ts` | `src/engine/credits.js` (getAllCredits, creditsToCsv, creditsToTxt) |
 | `sources/state/state.ts` selectDefaults | `src/engine/selection.js` (defaults: body + heads_human_male + face_neutral, all "light") |
-| URL hash / saved JSON | tool args (`selections`, `colors`, `character` v2 JSON); hash parsing intentionally not ported |
-| — **NONE** | `src/index.js` (shebang entry; bootstrap + the seven-tool MCP surface + response envelope). Upstream has no server: its UI state is the caller. |
+| `sources/state/json.ts:15-29,144-156` (v2 export with `layers[]` + `credits[]` + flags) | `src/spec.js:buildCharacterSpec` — `layers[]` is assembled from the draw calls `renderCharacter` reports, so the document cannot disagree with the PNG it describes |
+| `sources/state/json.ts:174-232` (v1 import) + `sources/state/hash.ts` (URL state) | `src/spec.js:readSavedCharacter` — **bounded port**: `sex`, `type_name=Name[_variant][_recolor]` and `_none` clearing, resolved through `selection.js:resolveItem`. Upstream's alias/wildcard tables are not reproduced; a name this pack cannot resolve becomes a `warning`, never a failed render |
+| — **NONE** | `src/index.js` (shebang entry; bootstrap + the nine-tool MCP surface + response envelope). Upstream has no server: its UI state is the caller. |
 | — **NONE** | `src/character.js` (`renderAndSave` request pipeline, `resolveOutputPath`, file writes). Upstream's equivalents are browser download helpers (`sources/models/download.ts`), which this port replaces with direct `fs` writes. |
 | — **NONE** | `src/assets-dir.js` (asset-pack discovery). Upstream *is* the checkout, so the path is a build-time fact with no lookup logic. |
 | — **NONE** | `src/engine/sheet.js:305 describeLayout`. Upstream keeps the row mapping in module-level state and in the `tools/layout/*.json` files; nothing returns it as data. |
@@ -52,6 +56,35 @@ from UI state or from a layout file at click time.
   `ANIMATION_CONFIGS` has 17 keys precisely because two of them (`watering`, `1h_slash`) are aliases.
 - `custom-animations.js` holds 14 blocks: one at 64px (`wheelchair`), eight at 128px, five at 192px;
   the widest is 1664px (13 columns × 128: `tool_rod`, `backslash_128`).
+- **Unreachable blocks are kept but not advertised.** Two of those 14 (`thrust_128`, `whip_oversize`)
+  are defined upstream while no item in the pack references them. The definitions stay for parity;
+  `Catalog.customAnimationProviders()` is the authority on reachability, `list_animations` marks each
+  block `available`, and `SpriteEngine.customAnimationNames()` feeds only reachable names into error
+  messages. `validate_sheet` reports the drift in both directions.
+- `src/export.js` — the directory-bundle writer. Upstream ships the same content as four ZIP modes;
+  a ZIP would add a dependency for a client that shares this filesystem, so the bundle is a tree plus
+  `manifest.json`. Nothing in `src/engine/` writes files; the bundle writer is the caller.
+- **TexturePacker JSON Hash is a dialect upstream does not have.** Chosen because it is the format
+  Phaser and most importers read. `rotated:false` and `trimmed:false` are true statements about the
+  engine's fixed grid. `anchor {0.5,0.5}` is not: the LPC grid carries no per-frame hot spot, so the
+  atlas states a cell-centred pivot and `meta.pivotNote` says it is a local default. Frame durations
+  are deliberately absent for the same reason — the pack ships no timing data, and inventing fps in a
+  machine-readable file is how consumers end up trusting a number nobody measured.
+- `src/validate.js` — the layout audit. Upstream has no equivalent; its maintainer asked for one
+  (issue #588, after a shipped strip disagreed with its own definition). `warn` is used for the
+  documented upstream asset-gap path, `fail` only where this port's own tables or the pack contradict
+  them, and `test/golden-test.mjs` proves the audit can say no.
+- `packRevision()` in `src/assets-dir.js` — the pack commit behind a result. Upstream is the checkout,
+  so it never needed to say which version of itself it ran. `spawnSync git`, cached, returns null for a
+  non-git pack and never throws.
+- `list_items`' 12,000-byte response budget, `fields` selection and `bytes`/`truncated`/`nextOffset`
+  keys. Upstream is a tree widget with virtual scrolling; a text protocol pays tokens per call.
+- Tool `title`s, the four annotations, `outputSchema` + `structuredContent` on the six data tools, and
+  the size-gated `type:"image"` block on `get_preview`. None of it exists upstream; it is what the MCP
+  spec asks a server to say about itself.
+- `ANIMATION_CONFIGS` reports 17 keys, `customAnimations` 14 blocks, and the universal sheet has 15
+  row blocks. All three counts are right and mean different things; `validate_sheet layout` and
+  `list_animations` are how a caller tells them apart.
 
 ## Tool surface → engine entry
 
@@ -61,11 +94,13 @@ a payload shape, or the filesystem.
 | Entry | Engine surface it reads |
 |---|---|
 | `list_categories`, `list_items`, `list_palettes` | `Catalog` only |
-| `list_animations` | `ANIMATION_CONFIGS` + `customAnimations` + a `usedBy` reverse index built over `catalog.itemsById` in `index.js` |
+| `list_animations` | `ANIMATION_CONFIGS` + `customAnimations` + `Catalog.customAnimationProviders()` for `usedBy`/`available` |
 | `generate_spritesheet` | `renderCharacter` → whole canvas + `describeLayout` output |
 | `get_animation` | `renderCharacter` + `extractAnimation` (standard) or `extractCustomAnimation` (custom) |
 | `get_preview` | `renderCharacter` + `extractPreviewStrip`, then nearest-neighbour upscale by `scale` 1–8 in `index.js` |
-| `scripts/make-showcase.mjs` | `renderCharacter` + `extractFrame` / `extractPreviewStrip` directly, bypassing MCP |
+| `export_character` | `renderCharacter` + `extractAnimation` / `extractCustomAnimation` (mode `animation`) or `extractFrame` / `extractCustomFrame` (mode `frames`), with rects from `describeLayout`; writes via `src/export.js` |
+| `validate_sheet` | tables + `Catalog` (`layout`, `catalog`) or an unsaved `renderCharacter` (`character`) — it never writes |
+| `scripts/make-showcase.mjs`, `scripts/make-golden.mjs` | `renderCharacter` + crops directly, bypassing MCP |
 | `test/run-tests.mjs` | the same engine methods in-process |
 
 ## Runtime shape
@@ -88,9 +123,12 @@ flowchart LR
   SDK["@modelcontextprotocol/sdk"]
   CANVAS["@napi-rs/canvas"]
 
-  INDEX["src/index.js<br/>bootstrap + 7 tools"]
+  INDEX["src/index.js<br/>bootstrap + 9 tools"]
   CHAR["src/character.js<br/>request pipeline"]
-  ADIR["src/assets-dir.js<br/>pack discovery"]
+  ADIR["src/assets-dir.js<br/>pack discovery + revision"]
+  EXPORT["src/export.js<br/>bundle writer"]
+  SPEC["src/spec.js<br/>saved-character read/write"]
+  VALID["src/validate.js<br/>layout audit"]
 
   subgraph ENGINE["src/engine/"]
     CAT["catalog.js"]
@@ -104,6 +142,8 @@ flowchart LR
 
   INDEX --> ADIR
   INDEX --> CHAR
+  INDEX --> EXPORT
+  INDEX --> VALID
   INDEX --> CAT
   INDEX --> SHEET
   INDEX --> CONST
@@ -112,6 +152,19 @@ flowchart LR
   INDEX --> CANVAS
   CHAR --> SEL
   CHAR --> CRED
+  CHAR --> SPEC
+  CHAR --> ADIR
+  EXPORT --> CHAR
+  EXPORT --> SPEC
+  EXPORT --> CRED
+  EXPORT --> CONST
+  EXPORT --> ADIR
+  VALID --> CONST
+  VALID --> CUST
+  VALID --> ADIR
+  SPEC --> SEL
+  SPEC --> REC
+  SPEC --> CONST
   SHEET --> CONST
   SHEET --> CUST
   SHEET --> REC
@@ -122,8 +175,12 @@ flowchart LR
   SHEET -.->|holds instance, no import| CAT
 ```
 
-`constants.js`, `recolor.js`, `credits.js`, `custom-animations.js` and `assets-dir.js` are leaves:
-they import no local module.
+`constants.js`, `recolor.js`, `credits.js` and `custom-animations.js` are engine leaves: they import no
+local module. `assets-dir.js` is the only module that touches the outside world besides `fs` — it
+shells out to `git rev-parse` for the pack revision, caches the answer per directory, and returns null
+instead of failing when the pack is not a checkout. `export.js` and `validate.js` sit on the
+MCP-facing side of the boundary and are the only modules that write files or read tables for the
+purpose of judging them; `src/engine/` still writes nothing.
 
 ### One `generate_spritesheet` call
 
@@ -143,7 +200,7 @@ sequenceDiagram
 
   C->>I: tools/call generate_spritesheet(args)
   I->>P: renderAndSave(engine, args, extract)
-  P->>P: buildSelections (optional character v2 JSON, bodyType default male)
+  P->>P: buildSelections (optional character JSON v2 or v1 state hash, bodyType default male)
   P->>S: normalizeSelections(catalog, bodyType, merged selections, colors)
   S-->>P: map keyed by type_name
   P->>E: renderCharacter(bodyType, selections, matchBodyColorEnabled)
@@ -156,12 +213,12 @@ sequenceDiagram
   E->>E: drawImage at 0, yPos
   E->>E: append custom blocks below row 54, widen to the widest block
   E->>E: describeLayout()
-  E-->>P: canvas, layout, warnings
+  E-->>P: canvas, layout, warnings, layers
   P->>P: extract (crop or pass through)
   P->>F: resolveOutputPath (mkdirs parents, relative against server cwd)
-  P->>F: write PNG, plus credits CSV/TXT and optional character JSON
-  P-->>I: payload (output, image, layout, warnings, selections, credits)
-  I-->>C: jsonResult, payload as pretty-printed JSON text
+  P->>F: write PNG, plus credits CSV/TXT and optional full character JSON
+  P-->>I: payload (output, bodyType, pack.revision, image, layout, warnings, selections, credits)
+  I-->>C: jsonResult, payload as pretty-printed JSON text (+ image block for get_preview)
   Note over I,C: any throw becomes a payload with error plus hint and isError true, never a rejected handler
 ```
 
@@ -191,10 +248,12 @@ flowchart LR
   OUTD --> PNG["name.png"]
   OUTD --> CRT["name-credits.csv, name-credits.txt<br/>(include_credits defaults on)"]
   OUTD --> CHJ["name-character.json (opt-in)"]
+  OUTD --> BUNDLE["or a bundle dir: sheet.png, sheet.atlas.texturepacker.json,<br/>manifest.json, standard/*.png or standard/*/*.png,<br/>custom/*/*.png, sheet-credits.csv/.txt"]
 ```
 
-The engine never writes files and the pack is never written to at all; only `src/character.js`
-touches the filesystem, and only beside the requested output path.
+The engine never writes files and the pack is never written to at all. `src/character.js` writes the
+single-file outputs beside the requested path; `src/export.js` is the only other writer and it stays
+inside the `output_dir` it was given.
 
 ## Invariants worth remembering
 
@@ -228,3 +287,17 @@ touches the filesystem, and only beside the requested output path.
   `watering`/`1h_*` rows report the frames/yOffset of the row block they share.
 - Per-animation source PNGs are cropped to their real frame count (walk 9 cols,
   idle 2, combat_idle 2, …) — never assume 13 filled columns.
+- Warning text is part of the contract: the same character must produce the same strings every run.
+  Missing-row lists are ordered by sheet position, not by the order sprite loads settle, and
+  `test/golden-test.mjs` compares those arrays across processes.
+- A result is only reproducible if the pack behind it is named, so render, bundle and audit payloads
+  all carry `pack: { revision }`. `test/golden.json` pins that revision for the byte hashes; CI
+  checks out the same ref.
+- `list_items` never returns more than `LIST_ITEMS_BYTE_BUDGET` serialized bytes unless a single item
+  alone exceeds it, in which case it says so with `oversizedItem`. `bytes` describes the text the
+  caller actually receives, budget keys included.
+- Where a tool offers a per-item argument it removes the ones that cannot apply rather than ignoring
+  them: `export_character` has no `output_path` (it takes `output_dir`), `validate_sheet` has no
+  output or sidecar arguments at all. A caller that passes one gets an unknown-argument warning.
+- `renderCharacter`'s `layers` inventory is derived from the draw calls that painted, so a character
+  document can never claim support for a row block the sheet left empty.

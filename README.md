@@ -18,7 +18,7 @@ describes a character, and gets back a game-ready 832×3456 spritesheet with the
 no browser, no screenshotting, no manual export button.
 
 <p align="center">
-  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the seven tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
+  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the nine tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
   <sub>A real session against <code>src/index.js</code> over stdio — every byte of JSON shown is what the server returned.<br>
   Only the typing timing is authored. Regenerate with <code>npm run demo</code> (<a href="./docs/img/demo-credits.csv">attribution</a>).</sub>
 </p>
@@ -33,7 +33,11 @@ no browser, no screenshotting, no manual export button.
   `climb` ship a single facing — that is exactly the 54 rows. Plus **custom-animation blocks** for
   wheelchairs and 128/192px oversize weapons and tools.
 - **Engine-ready output.** Every render returns rows, frame counts, playback cycles and custom-block
-  offsets, so a game engine never has to guess the layout.
+  offsets, and `export_character` fans the same character out into per-animation or per-frame PNGs
+  with a TexturePacker/Phaser JSON Hash atlas and a manifest, so a game engine never has to guess the
+  layout or slice the sheet itself.
+- **Deterministic, and now proven.** `npm run golden` records SHA-256 hashes of seven canonical
+  renders against a pinned asset-pack revision, and the test suite fails if a render drifts.
 - **Attribution included.** Each sheet gets `-credits.csv` / `-credits.txt` beside it naming the
   authors and licenses of the art actually used.
 
@@ -68,7 +72,7 @@ prints what it searched for and exits — it will not start half-configured.
 No MCP client required — the official protocol inspector drives the server from a shell:
 
 ```bash
-# list the seven tools and their schemas
+# list the nine tools and their schemas
 npx -y @modelcontextprotocol/inspector --cli node src/index.js --method tools/list
 
 # or render a walk cycle and print the JSON payload that names the PNG it wrote
@@ -137,24 +141,29 @@ claude mcp add lpc-spritesheet -- npx -y lpc-spritesheet-mcp
 ```
 </details>
 
-## The seven tools
+## The nine tools
 
 | Tool | Purpose |
 |---|---|
 | `list_categories` | All selection groups (`body`, `hair`, `head`, `clothes`, `legs`, `shoes`, `weapon`, `hat`, `shield`, `tail`, `wings`, …) with item counts and whether they take colors. Start here. |
-| `list_items` | One category: exact `itemId`s, display names, pre-sliced variants, valid recolors — deduplicated into a response-level `palettes` map. Filter with `search`, page with `limit`/`offset`. |
+| `list_items` | One category: exact `itemId`s, display names, pre-sliced variants, valid recolors — deduplicated into a response-level `palettes` map. Filter with `search`, page with `limit`/`offset`, shrink with `fields`; the response is byte-budgeted, so check `truncated`/`nextOffset`. |
 | `list_palettes` | Color names per material (`body`, `hair`, `eye`, `cloth`, `metal`, `wood`, `all`), with each material's default. |
-| `list_animations` | The row layout of every animation (rows, frame counts, playback cycles, y-offsets) plus the custom blocks and which items provide them. |
-| `generate_spritesheet` | Render the full universal sheet; returns paths, layout, warnings and credits. |
+| `list_animations` | The row layout of every animation (rows, frame counts, playback cycles, y-offsets) plus the custom blocks, which items provide them, and whether any item does. |
+| `generate_spritesheet` | Render the full universal sheet; returns the path, layout, warnings, credits and the asset-pack revision. |
 | `get_animation` | Render, then crop ONE animation into its own PNG — standard row block or custom block. |
-| `get_preview` | Render, then crop one direction's playback cycle, upscaled 1–8× — the quickest visual check of a design. |
+| `get_preview` | Render, then crop one direction's playback cycle, upscaled 1–8×. Small enough to return inline, so you also get the image itself, not just a path. |
+| `export_character` | Render, then fan out into a directory bundle: `sheet.png`, a TexturePacker/Phaser JSON Hash atlas of every frame rect, `manifest.json`, and either one PNG per animation row block (`mode: "animation"`) or one per frame (`mode: "frames"`), plus credits. |
+| `validate_sheet` | Audit instead of render: the port's row-block tables against the pack (`layout`), a character's painted columns against the declared frame counts (`character`), or item definitions against what this port can resolve (`catalog`). Writes nothing; `ok: false` names what failed. |
 
-The three render tools share one argument block: `bodyType`, `selections`, `colors`, `character`,
-`match_body_color`, `output_path`, `include_credits`, `include_character_json`. Item IDs, display
-names, `"none"`, and `{itemId, variant?, recolor?}` objects are all accepted per group; a
-saved-character JSON (`{version: 2, selections}` from the web app) can be passed as `character` and
-explicit `selections`/`colors` merge on top of it. Defaults mirror the web app — light-skinned body,
-human male head, neutral expression (note the head default is *not* body-aware).
+The render tools share one argument block: `bodyType`, `selections`, `colors`, `character`,
+`match_body_color`, `include_credits`, `include_character_json` — plus `output_path` for the three
+single-file tools and `output_dir` for `export_character`. Item IDs, display names, `"none"`, and
+`{itemId, variant?, recolor?}` objects are all accepted per group. `character` takes the web app's
+saved-character JSON (`{version: 2, selections}`, or the fuller document this server writes) or a v1
+document with a `#sex=…&hair=…` state hash; explicit `selections`/`colors` merge on top. A v1 hash
+that names a retired group or a stale color comes back as `warnings`, not a failure. Defaults mirror
+the web app — light-skinned body, human male head, neutral expression (note the head default is *not*
+body-aware).
 
 ### One call, start to finish
 
@@ -223,14 +232,17 @@ timestamp suffix so two renders never overwrite each other.
   The empty walk row is the honest case: this weapon ships no standard-row art, and the tool says so in <code>warnings</code>.</sub>
 </p>
 
-Rendering is fast enough to iterate on inside a conversation: a plain 832×3456 sheet composites in
-about 45 ms and a weapon sheet with two 128px custom blocks in about 140 ms, with the 657-item catalog
-loaded in about 160 ms (Node 24 on an i7-10750H, warm process, local pack — your numbers will differ).
+Rendering is fast enough to iterate on inside a conversation, but the number that matters is the first
+call, not the steady state. Measured on Node 24 / Windows against pack revision `553ba75`: ~200 ms to
+load the 657-item catalog, ~1.1 s from process start to the server's ready line, ~0.53 s for the first
+832×3456 sheet while sprite PNGs come off disk, then **3–10 ms per further render** (including a weapon
+sheet with 128px custom blocks) once the engine's image cache is warm — an animation crop ~8 ms, a
+preview strip ~80–140 ms. A fresh MCP client pays the cold path once per process.
 
 ## How it works
 
 <p align="center">
-  <img src="docs/img/architecture.svg" alt="System architecture: an MCP client speaks JSON-RPC over stdio to src/index.js, which dispatches seven tools into a shared request pipeline in src/character.js; that pipeline drives the engine modules over a read-only external asset pack and renders through @napi-rs/canvas to a PNG plus attribution files" width="1000">
+  <img src="docs/img/architecture.svg" alt="System architecture: an MCP client speaks JSON-RPC over stdio to src/index.js, which dispatches nine tools into a shared request pipeline in src/character.js; that pipeline drives the engine modules over a read-only external asset pack and renders through @napi-rs/canvas to a PNG, a bundle directory, or an in-memory audit, always with attribution files" width="1000">
 </p>
 
 `src/index.js` is the MCP surface, `src/character.js` is the request pipeline, and `src/engine/` is a
@@ -256,10 +268,12 @@ row block:
 | `hurt` | 20 | 6 (1 row, down) | | `halfslash` | 50 | 6 |
 | `climb` | 21 | 6 (1 row, up) | | | | |
 | `idle` | 22 | 2 | | | | |
+| `jump` | 26 | 5 | | | | |
 
-`watering`, `combat` and `1h_*` are accepted names that resolve onto these same blocks. Custom blocks
-(64–192px frames) are appended below row 54 and can widen the canvas to 1664px; the result payload
-reports every offset, so a consumer never has to derive them.
+`watering` and `1h_slash` are aliases that resolve onto another block's frames (`thrust` and
+`backslash`); `combat` and `1h_backslash`/`1h_halfslash` **own** their rows and only differ in the
+folder the pack ships them in. Custom blocks (64–192px frames) are appended below row 54 and can widen
+the canvas to 1664px; the result payload reports every offset, so a consumer never has to derive them.
 
 Known upstream asset gaps surface as `warnings`, one message per item — e.g. the `child` body ships
 only hurt/idle/jump/sit/slash/walk, so its other rows come back empty by design, not by bug.
@@ -281,7 +295,8 @@ only hurt/idle/jump/sit/slash/walk, so its other rows come back empty by design,
 ```bash
 npm install
 npm run setup-assets    # or lpc-spritesheet-setup if you installed globally
-npm test                # 36 passing items: 19 engine, 16 end-to-end stdio MCP, 1 canvas smoke
+npm test                # 66 passing items: 25 engine, 16 stdio MCP, 15 surface, 9 golden, 1 smoke
+npm run golden          # re-record test/golden.json after an intended rendering change
 npm run assets          # regenerate every committed image (docs/img/)
 ```
 

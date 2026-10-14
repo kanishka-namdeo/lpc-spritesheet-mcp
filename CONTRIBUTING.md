@@ -11,10 +11,13 @@ npm install
 
 # one-time: clone the ~350MB asset pack the server reads from
 npm run setup-assets        # → ~/.lpc-spritesheet/lpc-generator-src
+# LPC_ASSETS_REF=<sha> pins the clone and prints the revision installed;
+# `test/golden.json` records the pack revision the golden gate expects.
 # (or clone Universal-LPC-Spritesheet-Character-Generator yourself
 #  next to this repo as ../lpc-generator-src, or anywhere + LPC_ASSETS_DIR)
 
-npm test                    # 36 passing items: engine tests + real stdio MCP client tests
+npm test                    # 66 passing items: engine + stdio MCP + tool-surface tests
+                            # + golden-render determinism gate + canvas smoke
 ```
 
 `LPC_ASSETS_DIR` overrides where the server looks for the asset pack, and the test suite honours the
@@ -33,7 +36,8 @@ enough — no export needed.
   every change must preserve. **Read it before touching `src/engine/`.**
 - `docs/capability-inventory.md` — what the upstream generator can do.
 - `docs/img/` — every image the README embeds, all generated. See the image rule below.
-- `test/` — the acceptance gate. `scripts/` — setup and docs-asset generation.
+- `test/` — the acceptance gate, including the golden renders and `test/golden.json`.
+  `scripts/` — setup, docs-asset generation, and `npm run golden` (`scripts/make-golden.mjs`).
 
 ## Ground rules
 
@@ -53,13 +57,18 @@ enough — no export needed.
    `npm run assets` (`diagrams` → the architecture SVG, `showcase` → the rendered banners and
    gallery, `demo` → the animated session capture). A change that alters visible rendering must
    regenerate them in the same pass, and each render keeps its credits sidecar.
+6. **The golden gate is data, not prose.** `test/golden.json` records SHA-256 hashes, dimensions,
+   warnings, credit counts, and the pack revision for seven canonical renders; `npm test` re-renders
+   and compares (`test/golden-test.mjs`). Never hand-edit it — an intentional rendering change
+   re-records it with `npm run golden` and commits the diff in the same pass.
 
 ## Releasing
 
-There is no publish workflow — CI runs `npm test` and the no-assets check, and stops there. The
+There is no publish workflow — CI runs `npm test` (against the asset-pack revision pinned in
+`.github/workflows/ci.yml`) and the no-assets check, and stops there. The
 release is a human sequence, run from a checkout with the asset pack present.
 
-1. **Gate first.** `npm test` (36 items) locally and CI green on `main`. Nothing else in this repo
+1. **Gate first.** `npm test` (66 items) locally and CI green on `main`. Nothing else in this repo
    checks the publish surface, so do not skip this step and do not publish from a dirty tree.
 2. **Decide the version.** A change to the 832x3456 universal layout, a tool rename, or any other
    break of the external contract is a major. A new tool, argument, or `bin` is a minor. Everything
@@ -80,7 +89,7 @@ release is a human sequence, run from a checkout with the asset pack present.
 
    Check the tarball list too: `src/`, `scripts/setup-assets.mjs`, `docs/*.md`, `README.md`,
    `CHANGELOG.md`, `LICENSE`. No `docs/img/`, no generators, no `test/`, no asset pack. `tools/list`
-   must return the seven tools, and `initialize` must report the version you just set.
+   must return the nine tools, and `initialize` must report the version you just set.
 5. **Publish.** `npm whoami` must already answer; if the account requires 2FA, pass `--otp=<code>`.
    Provenance cannot be minted from a workstation — `--provenance` needs CI's OIDC identity.
 6. **Mark it.** `git tag v<version> && git push --tags`, then a GitHub release whose notes are that

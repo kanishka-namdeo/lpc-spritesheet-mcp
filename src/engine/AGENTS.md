@@ -11,10 +11,10 @@ No browser, no Vite, no Mithril, no TypeScript build.
 | File | Responsibility |
 |---|---|
 | `constants.js` | Sheet geometry, body types, directions, animation row blocks, cycles, frame counts |
-| `catalog.js` | `Catalog`: loads `sheet_definitions/` + `palette_definitions/` into item and palette lookups |
-| `selection.js` | `normalizeSelections`: tool input -> the app's `{type_name: {itemId, subId, variant, recolor}}` map, plus defaults |
+| `catalog.js` | `Catalog`: loads `sheet_definitions/` + `palette_definitions/` into item and palette lookups; `customAnimationProviders()` is the authority on which custom blocks the pack can actually produce |
+| `selection.js` | `normalizeSelections`: tool input -> the app's `{type_name: {itemId, variant, subId, recolor}}` map, plus defaults. `resolveItem` is exported so the saved-character reader resolves names the same way |
 | `recolor.js` | Palette resolution and the CPU index-paired recolor of a loaded image |
-| `sheet.js` | `SpriteEngine`: draw-call build, z-sort, load, recolor, composite, and every crop/extract |
+| `sheet.js` | `SpriteEngine`: draw-call build, z-sort, load, recolor, composite; returns `{canvas, layout, warnings, layers}`; every crop (`extractAnimation`, `extractCustomAnimation`, `extractPreviewStrip`, `extractFrame`, `extractCustomFrame`) and `customAnimationNames()` |
 | `custom-animations.js` | Oversize / non-grid animation blocks (wheelchair, 128-192px weapons) and their layouts |
 | `credits.js` | Collect per-asset attribution and serialize it as CSV and TXT |
 
@@ -31,6 +31,18 @@ No browser, no Vite, no Mithril, no TypeScript build.
   upstream names and row numbers; where upstream's on-disk folder differs from the canonical row
   name, use `folderName` remaps rather than renaming either side.
 - **The WebGL recolor path is intentionally unported.** CPU-only; do not describe or add a GPU path.
+- **Warning text is part of the output contract.** The same character must produce the same
+  `warnings` strings every run, so the aggregated missing-row lists are ordered by sheet position
+  rather than by the order sprite loads settle. `test/golden-test.mjs` compares these across
+  processes; treating a warning string as cosmetic will break the gate.
+- **`renderCharacter` reports what it painted.** `layers` is built from the draw calls that survived
+  row gating, not re-derived from the rules a second time. Anything that needs to know which row
+  blocks an item contributed reads that list rather than recomputing `itemSupportsAnimation`.
+- **Upstream data that this pack cannot use stays, but stays quiet.** `custom-animations.js` keeps
+  upstream's 14 definitions even though the pack provides 12; `Catalog.customAnimationProviders()`
+  decides reachability and `SpriteEngine.customAnimationNames()` is the only thing error messages may
+  list. Do not delete the unreachable definitions for tidiness — that is a divergence from upstream
+  tables, and `validate_sheet` reports the drift either way.
 - **The engine knows nothing about MCP.** No tool shapes, argument names, or result payloads from
   `src/index.js` may leak in here; the boundary is `character.js`.
 - **The engine never writes files.** It returns canvases and layout data; saving and attribution

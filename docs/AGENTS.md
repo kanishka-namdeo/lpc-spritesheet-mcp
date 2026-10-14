@@ -36,7 +36,7 @@ do*. User-facing material stays in `README.md`; working rules stay in AGENTS.md 
   `.gitattributes`, `*.svg` text) because the README embeds them, and they are stale the moment
   rendering changes.
 - **Committed images are renders, so they carry attribution.** The upstream pack is OGA-BY/CC-BY-SA/
-  CC-BY/GPL work, so every generated image has a credits sidecar beside it (`img/showcase-credits.*`,
+  CC-BY/GPL work, so every generated render is covered by a credits sidecar (`img/showcase-credits.*`,
   `img/demo-credits.*`). An image added to `img/` without one is a licensing regression, the same as
   a render without `-credits.csv`.
 - **Pixel art must be baked, not browser-scaled.** GitHub's sanitizer strips inline `style`, so

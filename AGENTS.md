@@ -115,12 +115,19 @@ These bind every subtree. Child docs may add local detail but may not weaken the
   the only check that runs the shipped artifact instead of the checkout.
 - **`npm test` is the acceptance gate.** No lint, typecheck, or format tooling exists in this
   repo; do not claim a check that is not wired up.
+- **Rendering is reproducible, and that is a tested claim.** `test/golden.json` records SHA-256
+  hashes of canonical renders against a named asset-pack revision; `npm run golden` re-records it and
+  `test/golden-test.mjs` fails on drift, including a revision mismatch. Bumping the pack revision CI
+  checks out, `npm run golden`, and the manifest therefore belong to one change — a re-recorded
+  golden file with no rendering reason is the bug, not the fix.
 
 ## Asset Discovery Order
 
-One implementation: `src/assets-dir.js` (`assetCandidates()`, `hasAssets()`, `findAssetsDir()`).
-The server, `test/` and `scripts/` all import it, so a pack that satisfies one of them satisfies all.
-(Three private copies of this order are what let CI pass on a dev box and fail on the runners.)
+One implementation: `src/assets-dir.js` (`assetCandidates()`, `hasAssets()`, `findAssetsDir()`,
+`packRevision()`). The server, `test/` and `scripts/` all import it, so a pack that satisfies one of
+them satisfies all. (Three private copies of this order are what let CI pass on a dev box and fail on
+the runners.) `packRevision()` is how a result says which commit its art came from: `git rev-parse`
+cached per directory, `null` for a non-git pack, never a throw.
 
 1. `$LPC_ASSETS_DIR`
 2. Sibling clone `../lpc-generator-src` (the dev-checkout convention)
@@ -148,12 +155,12 @@ When the user requests a durable behavior change, record it here or in the relev
 
 | Path | Owns |
 |---|---|
-| `src/` | Shipped runtime: the MCP tool surface and the shared character-request pipeline |
+| `src/` | Shipped runtime: the nine-tool MCP surface, the shared character-request pipeline, the bundle exporter, the saved-character reader/writer, the layout auditor |
 | `src/engine/` | Headless port of the upstream renderer; fidelity rules |
-| `test/` | The acceptance gate: engine tests, real stdio MCP tests, canvas smoke |
-| `scripts/` | Asset-pack setup and the generators behind every committed image in `docs/img/` |
+| `test/` | The acceptance gate: engine tests, real stdio MCP tests, the golden determinism manifest, canvas smoke |
+| `scripts/` | Asset-pack setup and the generators behind every committed image in `docs/img/`, plus `npm run golden` |
 | `docs/` | Durable internals: port map, invariants, upstream capability record |
-| `.github/` | CI: the matrix, the asset-pack checkout, the no-assets assertion; plus issue/PR templates and Dependabot |
+| `.github/` | CI: the matrix, the pinned asset-pack checkout, the no-assets assertion; plus issue/PR templates and Dependabot |
 
 Root-owned, with no child of their own: `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 `SECURITY.md`, `LICENSE`, `package.json`, `.gitignore`, `.gitattributes`.

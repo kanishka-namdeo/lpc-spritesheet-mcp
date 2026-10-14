@@ -5,6 +5,109 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-14
+
+Audited against the live asset pack rather than against the docs: every claim below was measured
+first, and the fixes are the places where the shipped behaviour and the documented behaviour disagreed.
+
+### Added (engine-artifact export)
+
+- **`export_character`** fans one character out into a directory bundle instead of a single PNG:
+  `sheet.png`, `sheet.atlas.texturepacker.json` (TexturePacker JSON Hash, which Phaser and most
+  importers read) with a rect for every frame of every row block and custom block, `manifest.json`
+  with the full layout and the pack revision, and either one PNG per animation row block
+  (`mode: "animation"`, default) or one per frame cell (`mode: "frames"`). Credits sidecars are
+  written beside the bundle, so attribution survives the fan-out. `extractFrame`, which the engine
+  had ported but no tool exposed, is now the back of the per-frame path, with a new
+  `extractCustomFrame` for oversize blocks.
+  Deliberately **not** a ZIP: the MCP client is co-located, a path is already what this server
+  returns, and the package still has two dependencies. This is the upstream app's split-by-animation
+  and split-by-frame export modes, which its maintainer declined to add to the browser for exactly
+  the reason a headless server can answer — different engines want different files.
+- **`validate_sheet`** audits the layout instead of painting it. `scope: "layout"` checks the port's
+  row-block tables against each other and against the pack's `custom_animation` values in both
+  directions; `scope: "character"` renders in memory and compares the columns actually painted per
+  direction row against the declared frame counts; `scope: "catalog"` reads item definitions for
+  animations this port cannot resolve and for layers that ship no art for a body type the item
+  claims. It writes nothing, and `ok: false` names the failing check. Written after upstream's
+  maintainer asked the community for "a PR to test animation alignment in an automated fashion".
+  On its first run against this pack it found two real things: see Fixed.
+- **`npm run golden`** (`scripts/make-golden.mjs`) records SHA-256 hashes, dimensions, sorted warning
+  strings and credit counts for seven canonical characters into `test/golden.json`, and
+  `test/golden-test.mjs` re-renders and compares. Hashes of renders are committed; the art itself is
+  not, so the pack-never-vendored rule holds. A second test renders one spec twice and asserts
+  `Buffer.compare === 0`, which catches nondeterminism regardless of which pack is on disk.
+- Every render result, bundle manifest and audit result now carries `pack: { revision }`, the commit
+  the asset pack is checked out at. `scripts/setup-assets.mjs` accepts `LPC_ASSETS_REF`, clones at the
+  pinned revision when it is set, and prints the revision it installed — the scripts doc had admitted
+  nothing recorded it. CI's asset-pack checkout is pinned to the matching revision, because a byte
+  hash against unpinned art is a coin flip rather than a gate.
+- **Character spec round-trip.** `include_character_json` writes the app's full v2 document:
+  `layers[]` with `zPos`, `layerNum`, recolor slots and `supportedAnimations` per layer (taken from the
+  draw calls the engine actually painted, so it cannot disagree with the PNG it describes), `credits[]`,
+  `flags`, and the pack revision. The `character` argument now also accepts a **v1 document carrying a
+  `#sex=…&group=Name_variant_recolor` state hash**; names that no longer resolve come back as
+  `warnings` and the rest of the character still renders.
+
+### Added (protocol conformance)
+
+- Every tool declares a `title` and the four annotations (`readOnlyHint`, `destructiveHint`,
+  `idempotentHint`, `openWorldHint`). Absent hints default to the unsafe end: a client must assume a
+  tool it knows nothing about can delete data and reach the network.
+- `outputSchema` plus matching `structuredContent` on the four `list_*` tools, `export_character` and
+  `validate_sheet`. The three render tools stay text-only: their `layout` mirrors `describeLayout`,
+  and a hand-maintained twin schema is a second source of truth waiting to rot.
+- `get_preview` returns the crop as a `type: "image"` result block as well as a path, size-gated at
+  64 KB. A 64px strip is 2–4 KB; a full sheet is 188–280 KB and is not something to base64 into a
+  conversation, so the big ones stay paths.
+
+### Added (discovery ergonomics)
+
+- `list_items` responses are budgeted server-side at 12,000 bytes. Measured before the change: `hat`
+  cost 24,400 bytes (~6.8k tokens) and `head` 20,573 at the default `limit`, and the only bound in the
+  repo was a test asserting one category stayed under 20,000 — 24 of the 104 groups broke it. Responses
+  now report `bytes`, `truncated` and `nextOffset`, and a new `fields` array
+  (`itemId`, `name`, `variants`, `colors`, `customAnimation`) lets a caller list a whole category for a
+  fraction of the cost.
+- `list_items` documents the `bodyType` filter and `list_palettes` the `material` filter, both of which
+  were implemented and undocumented.
+- An invalid color name now suggests the nearest valid one and caps the enumeration
+  (`Valid: light, amber, … (78 more). Did you mean "dark_green"?`). The old message dumped 93 names,
+  1,630 bytes, for one typo.
+
+### Fixed
+
+- The `generate_spritesheet` description — the agent-facing contract — told callers custom blocks
+  widen the canvas "e.g. 1152/1536px". The measured maximum is 1664px (`tool_rod` renders 1664x3968);
+  the README already had this right, the schema did not. A new test asserts the description text.
+- `output_path`'s description claimed the default was `<server dir>/output/…`. It is
+  `lpc-spritesheet/<name>-<timestamp>.png` under the OS temp directory, which is what the README and
+  the code have always said.
+- Missing-row warnings listed their rows in the order sprite loads happened to settle, so the same
+  character produced different `warnings` strings across processes. Rows are now reported in sheet
+  order. `validate_sheet` found the table bug and the golden gate found the ordering — both were
+  written to catch exactly this.
+- Unreachable custom-animation blocks are no longer advertised as usable. `thrust_128` and
+  `whip_oversize` exist in upstream's definition table but no item in the pack provides them, so
+  `get_animation`'s "Unknown animation" error used to suggest names nothing can render. The
+  definitions stay (upstream parity), `list_animations` marks them `available: false`, and error
+  strings name only reachable blocks.
+- The README's "Sheet layout (stable)" table omitted `jump` (row 26, 5 frames per direction) while the
+  same file claimed 15 row blocks. It now lists all 15, and the alias sentence is corrected:
+  `watering` and `1h_slash` are aliases, while `combat`, `1h_backslash` and `1h_halfslash` own their
+  rows and differ only in the folder the pack ships them in.
+- The README's timings ("a plain sheet composites in about 45 ms") were warm-process numbers with no
+  cold-path figure. Replaced with measurements from one machine: ~200 ms catalog load, ~1.1 s to a
+  ready server, ~0.53 s for the first render while sprites come off disk, 3–10 ms after that.
+- The 1.2.1 defect fixes originally planned as a separate patch release ship here instead, since
+  nothing was published in between; the version sites and this heading stay in agreement.
+
+### Changed
+
+- `src/engine/sheet.js`'s `renderCharacter` also returns `layers` — the inventory of which item layers
+  painted and which row blocks each contributed. Pixels, dimensions and the existing result keys are
+  unchanged, and the golden gate proves it.
+
 ## [1.2.0] - 2026-10-13
 
 ### Fixed (CI and documentation drift)
