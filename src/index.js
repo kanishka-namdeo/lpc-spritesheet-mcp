@@ -147,12 +147,6 @@ function listItems(args) {
   if (!Number.isInteger(args.offset) && args.offset !== undefined) {
     return { error: "offset must be an integer." };
   }
-  if (!Number.isInteger(args.limit) && args.limit !== undefined) {
-    return { error: "limit must be an integer." };
-  }
-  if (!Number.isInteger(args.offset) && args.offset !== undefined) {
-    return { error: "offset must be an integer." };
-  }
   if (args.fields !== undefined) {
     if (!Array.isArray(args.fields) || args.fields.some((f) => !LIST_ITEM_FIELDS.includes(f))) {
       return {
