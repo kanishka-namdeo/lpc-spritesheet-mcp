@@ -86,10 +86,13 @@ prerequisite is this project's highest-volume support path.
 - **Missing-animation / empty-row reports are triaged as upstream gaps first.** The asset-pack form
   must keep saying so in its `description` (the `child` body ships only
   hurt/idle/jump/sit/slash/walk, so other rows are empty by design). Do not soften that into a bug.
-- **Facts in templates and the PR template are checkout-verifiable.** Commands, file paths, test
-  counts, the three version-declaration sites, and the `1.3.0` value must match the repo; URLs are
-  limited to this repo's canonical GitHub URL and the upstream pack. No badges, no links to
-  services this project does not use, no mention of Discussions or tooling that is not enabled here.
+- **Facts in templates and the PR template are checkout-verifiable.** Commands, file paths, tool
+  names, and test counts must match the repo — a count comes from a live `npm test` run, not from
+  whoever edited the file last. Never quote a release number as if it were current: a template
+  outlives its release, so ask for the value (`installed X.Y.Z / latest on npm A.B.C`) or name the
+  command that reports it. URLs are limited to this repo's canonical GitHub URL and the upstream
+  pack. No badges, no links to services this project does not use, no mention of Discussions or
+  tooling that is not enabled here.
 
 ## Work Guidance
 

@@ -16,13 +16,13 @@ Closes #
 
 ## Acceptance gate
 
-- [ ] `npm test` passes locally. That is the whole gate: 25 engine tests
-      (`test/run-tests.mjs`), 16 end-to-end stdio MCP tests
-      (`test/mcp-client-test.mjs`), 15 end-to-end tests of the 1.3.0 tool surface
-      (`test/mcp-surface-test.mjs`), the golden-render determinism gate
-      (`test/golden-test.mjs`, 9 items, comparing against `test/golden.json`),
-      plus the canvas smoke script (`test/smoke-canvas.mjs`) — 66 passing items
-      as of `1.3.0`.
+- [ ] `npm test` passes locally. That is the whole gate: 140 items, covering the engine
+      suite (`test/run-tests.mjs`), the two stdio MCP end-to-end suites
+      (`test/mcp-client-test.mjs`, `test/mcp-surface-test.mjs`), the GIF, randomizer,
+      preset, atlas-dialect, URL, AI and new-tool suites, the canvas smoke script
+      (`test/smoke-canvas.mjs`), and the golden-render determinism gate
+      (`test/golden-test.mjs`: three assertions over the seven canonical renders recorded
+      in `test/golden.json`, including the asset-pack revision they were taken from).
 - [ ] A **bug fix ships a regression test** that fails without the fix
       (`CONTRIBUTING.md` makes this binding; new behavior needs a test too).
 - [ ] If a change alters visible rendering, the committed README showcase
@@ -40,8 +40,9 @@ Closes #
       `.github/workflows/ci.yml`: the pin and the re-recorded golden file
       belong to one pass.
 - [ ] If the version is bumped, all three declarations agree — `package.json`,
-      the `Server` info in `src/index.js`, and the newest `CHANGELOG.md` heading
-      (currently all `1.3.0`).
+      the `Server` info in `src/index.js`, and the newest `CHANGELOG.md` heading.
+      No test asserts this; check it by eye, because the published manifest and the
+      `initialize` response are the two things a client compares.
 - [ ] Anything that changes the engine's behavior is matched against upstream or
       recorded as a documented divergence in `docs/ARCHITECTURE.md`, and that doc
       was updated in this same pass.

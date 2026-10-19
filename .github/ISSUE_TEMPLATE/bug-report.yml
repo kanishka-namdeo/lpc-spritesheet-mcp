@@ -134,7 +134,7 @@ body:
         The installed version (`npm view lpc-spritesheet-mcp version` gives the
         newest published one; the `Server` info in this repo's `src/index.js`
         gives the source version). Say if the two differ.
-      placeholder: "installed 1.3.0 / latest on npm 1.3.0"
+      placeholder: "installed X.Y.Z / latest on npm A.B.C"
     validations:
       required: true
       max_length: 120
