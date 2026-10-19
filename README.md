@@ -85,15 +85,26 @@ prints what it searched for and exits — it will not start half-configured.
 
 ## Try it now
 
-No MCP client required — the official protocol inspector drives the server from a shell:
+No MCP client required — the official protocol inspector drives the server from a shell. The
+inspector starts the server with a clean environment, so if your asset pack lives outside the two
+automatic locations, pass `-e LPC_ASSETS_DIR=<path>` (drop the flag when the pack is in
+`~/.lpc-spritesheet/lpc-generator-src` or a sibling `lpc-generator-src/`):
 
 ```bash
 # list the thirteen tools and their schemas
-npx -y @modelcontextprotocol/inspector --cli node src/index.js --method tools/list
+npx -y @modelcontextprotocol/inspector --cli node src/index.js --method tools/list \
+  -e LPC_ASSETS_DIR=/path/to/lpc-generator-src
 
-# or render a walk cycle and print the JSON payload that names the PNG it wrote
+# or render an ANIMATED walk cycle: the GIF comes back inline
 npx -y @modelcontextprotocol/inspector --cli node src/index.js --method tools/call \
-  --tool-name get_preview --tool-arg animation=walk --tool-arg scale=3 --tool-arg bodyType=female
+  --tool-name get_preview --tool-arg animation=walk --tool-arg format=gif \
+  --tool-arg scale=3 --tool-arg bodyType=female \
+  -e LPC_ASSETS_DIR=/path/to/lpc-generator-src
+
+# or roll a villager from a seed
+npx -y @modelcontextprotocol/inspector --cli node src/index.js --method tools/call \
+  --tool-name random_character --tool-arg seed=riverford-1 \
+  -e LPC_ASSETS_DIR=/path/to/lpc-generator-src
 
 # or drive it interactively: browse 657 items, call tools, view the result
 npx @modelcontextprotocol/inspector node src/index.js
@@ -102,7 +113,30 @@ npx @modelcontextprotocol/inspector node src/index.js
 ## MCP client configuration
 
 All of these run the same stdio server. `LPC_ASSETS_DIR` is optional — omit it if the pack is in one
-of the two automatic locations above.
+of the two automatic locations above. To enable the opt-in AI designer, add `LPC_AI_API_KEY`
+(any OpenAI-compatible endpoint via `LPC_AI_BASE_URL`, default Dashscope's; model via `LPC_AI_MODEL`:
+`qwen3.7-plus`, `kimi-k2.5` — the fast default — or `qwen3.6-plus`). Without the key the server is
+fully offline and `design_character` answers with a setup error.
+
+<details>
+<summary>With the AI designer enabled (any client, env block)</summary>
+
+```json
+{
+  "mcpServers": {
+    "lpc-spritesheet": {
+      "command": "npx",
+      "args": ["-y", "lpc-spritesheet-mcp"],
+      "env": {
+        "LPC_AI_API_KEY": "sk-…",
+        "LPC_AI_BASE_URL": "https://coding-intl.dashscope.aliyuncs.com/v1",
+        "LPC_AI_MODEL": "kimi-k2.5"
+      }
+    }
+  }
+}
+```
+</details>
 
 <details>
 <summary>Claude Desktop (<code>claude_desktop_config.json</code>)</summary>

@@ -68,7 +68,7 @@ There is no publish workflow — CI runs `npm test` (against the asset-pack revi
 `.github/workflows/ci.yml`) and the no-assets check, and stops there. The
 release is a human sequence, run from a checkout with the asset pack present.
 
-1. **Gate first.** `npm test` (66 items) locally and CI green on `main`. Nothing else in this repo
+1. **Gate first.** `npm test` (140 items) locally and CI green on `main`. Nothing else in this repo
    checks the publish surface, so do not skip this step and do not publish from a dirty tree.
 2. **Decide the version.** A change to the 832x3456 universal layout, a tool rename, or any other
    break of the external contract is a major. A new tool, argument, or `bin` is a minor. Everything
@@ -89,7 +89,7 @@ release is a human sequence, run from a checkout with the asset pack present.
 
    Check the tarball list too: `src/`, `scripts/setup-assets.mjs`, `docs/*.md`, `README.md`,
    `CHANGELOG.md`, `LICENSE`. No `docs/img/`, no generators, no `test/`, no asset pack. `tools/list`
-   must return the nine tools, and `initialize` must report the version you just set.
+   must return the thirteen tools, and `initialize` must report the version you just set.
 5. **Publish.** `npm whoami` must already answer; if the account requires 2FA, pass `--otp=<code>`.
    Provenance cannot be minted from a workstation — `--provenance` needs CI's OIDC identity.
 6. **Mark it.** `git tag v<version> && git push --tags`, then a GitHub release whose notes are that
