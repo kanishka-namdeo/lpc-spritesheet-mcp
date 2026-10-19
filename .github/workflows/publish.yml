@@ -1,11 +1,14 @@
 name: Publish
 
-# Publishes to npm from CI, where the OIDC identity lets npm mint a provenance
-# attestation (impossible from a workstation). Two ways in:
+# Publishes to npm from CI. Two ways in:
 #   - a published GitHub release checks out exactly its tag and ships that, and
 #   - a manual dispatch ships the ref it was run on (used for versions whose
 #     GitHub release predates this workflow).
-# Requires an NPM_TOKEN secret (Automation type) in the repo settings.
+# Auth is npm Trusted Publishing: the publisher configured on the npm package
+# names this repository and this workflow file, so the run's short-lived OIDC
+# token is the credential and no npm secret lives in repo settings. That is also
+# what makes provenance possible — a workstation has no OIDC identity to attest.
+# The publish step therefore sets no NODE_AUTH_TOKEN at all.
 
 on:
   release:
@@ -90,7 +93,8 @@ jobs:
         if: env.SKIP_PUBLISH != 'true'
         run: npm publish --provenance
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No token: this run authenticates with its OIDC identity, which only
+          # npm Trusted Publishing will accept for this package.
           # prepublishOnly re-runs the suite inside the publish, so it needs the pack too.
           LPC_ASSETS_DIR: ${{ github.workspace }}/lpc-generator-src
 

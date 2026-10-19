@@ -68,8 +68,11 @@ CI runs `npm test` (against the asset-pack revision pinned in
 `.github/workflows/ci.yml`) and the no-assets check. Publishing happens from CI —
 [`publish.yml`](./.github/workflows/publish.yml) runs on a published GitHub release (or a manual
 dispatch), gates on the same tests, and publishes with **provenance**, which only CI's OIDC
-identity can mint. One-time setup: add an `NPM_TOKEN` secret (an *Automation*-type npm access
-token, which is exempt from 2FA) to the repository settings.
+identity can mint. One-time setup: on the npm package, add a **Trusted Publisher** for GitHub
+Actions naming repository `kanishka-namdeo/lpc-spritesheet-mcp` and workflow `publish.yml`. Any
+branch or environment filter added there has to match the ref the workflow actually runs on — a
+`release` event runs on the tag, a dispatch on whatever ref it was started from. No npm token is
+kept in repo settings, and the publish step deliberately sets no `NODE_AUTH_TOKEN`.
 
 The release sequence, run from a checkout with the asset pack present:
 
@@ -98,15 +101,20 @@ The release sequence, run from a checkout with the asset pack present:
    `AGENTS.md` files, no generators, no `test/`, no asset pack. `tools/list`
    must return the thirteen tools, and `initialize` must report the version you just set.
 5. **Mark it.** `git tag v<version> && git push --tags`, then a GitHub release whose notes are that
-   `CHANGELOG.md` section. Publishing the release triggers `publish.yml`, which checks out the tag,
+   `CHANGELOG.md` section. Tag the commit you mean to ship: the workflow checks the tag out, and its
+   guard compares only the version *string*, so a tag left behind a later packaging change publishes
+   that older manifest while still passing. Publishing the release triggers `publish.yml`, which
    refuses to run if the tag and `package.json` disagree, skips cleanly if that version is already
    on the registry, and otherwise runs the gate and publishes with provenance. Watch the run:
    the last step prints the tarball URL and integrity of what landed.
 
-   Without an `NPM_TOKEN` secret, or for a version whose GitHub release already predates the
-   workflow, run `publish.yml` manually on the right ref (Actions → Publish → Run workflow), or
-   fall back to publishing from a workstation: `npm whoami` must already answer; if the account
-   requires 2FA, pass `--otp=<code>` — and note that a workstation publish carries no provenance.
+   For a version whose GitHub release already predates the workflow, run `publish.yml` manually on
+   the right ref (Actions → Publish → Run workflow). If the trusted publisher is missing or its
+   filters reject the run, npm answers 401 and nothing is published — fix the publisher and re-run.
+   A workstation publish still works as a fallback (`npm whoami` must already answer; pass
+   `--otp=<code>` if the account requires 2FA) but carries no provenance, and from this box also
+   ships the bins without their executable bit, because `core.fileMode` is off on Windows and
+   `npm pack` copies the file mode it sees.
 6. **Verify from the registry.** `npm view lpc-spritesheet-mcp version`, and one `npx -y
    lpc-spritesheet-mcp` startup from a directory that is not this checkout.
 

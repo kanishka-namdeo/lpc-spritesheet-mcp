@@ -105,7 +105,10 @@ gains three MCP prompts and three MCP resources. Rendering itself is byte-identi
     as invalid and silently *removes* the bins from the published manifest, breaking
     `npx lpc-spritesheet-mcp` and `lpc-spritesheet-setup`; both now use the form npm accepts
     (the registry had been auto-correcting earlier versions).
-  - Both bin scripts carry the executable bit in git (`100755`), so the tarball preserves it.
+  - Both bin scripts carry the executable bit in git (`100755`). A tarball records the mode of the
+    files on the machine that packed it, and this Windows checkout runs with `core.filemode=false`,
+    so packing here yields `0644`. `npx` works from either: npm's installer chmods a package's bin
+    targets on POSIX when it links them.
   - The tarball no longer ships the three contributor/agent `AGENTS.md` files (repo-side docs,
     no user value); `prepublishOnly: "npm test"` now gates every publish against the full
     140-item suite.
@@ -113,8 +116,10 @@ gains three MCP prompts and three MCP resources. Rendering itself is byte-identi
     npm registry page renders the banner, demo GIF, gallery and architecture diagram instead
     of broken images.
   - New `publish.yml` workflow publishes to npm from CI with provenance (release-published or
-    manual dispatch): tag/version drift fails fast, an already-published version skips cleanly
-    instead of erroring on re-run, and the full test gate runs before upload.
+    manual dispatch), authenticated by npm **Trusted Publishing**: the workflow run's OIDC token is
+    the credential, so no npm token lives in repository settings. Tag/version drift fails fast, an
+    already-published version skips cleanly instead of erroring on re-run, and the full test gate
+    runs before upload.
 
 ## [1.3.0] - 2026-10-14
 

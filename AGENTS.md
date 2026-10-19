@@ -119,6 +119,11 @@ These bind every subtree. Child docs may add local detail but may not weaken the
   the generators, or `test/` — those need a checkout, the asset pack, or a devDependency, none of
   which an installer has. `CONTRIBUTING.md` owns the release runbook, whose pack-and-install step is
   the only check that runs the shipped artifact instead of the checkout.
+- **The registry is written by CI only, and by no secret.** `.github/workflows/publish.yml` runs the
+  same gate and then `npm publish --provenance`, authenticated with npm Trusted Publishing against
+  this repo and that workflow file; there is no `NPM_TOKEN` in repo settings and none should be
+  added. A tag is a publish input: the workflow checks it out, so the tagged commit must carry the
+  manifest intended for that version.
 - **`npm test` is the acceptance gate.** No lint, typecheck, or format tooling exists in this
   repo; do not claim a check that is not wired up.
 - **Rendering is reproducible, and that is a tested claim.** `test/golden.json` records SHA-256
@@ -164,6 +169,10 @@ When the user requests a durable behavior change, record it here or in the relev
 - 2026-10-19 (owner): delight features are first-class — animated GIF previews, seeded random
   characters, NPC batches, curated presets, multi-engine atlas dialects, upstream `generatorUrl`
   round-trip, MCP prompts/resources. All offline-capable except design_character (above).
+- 2026-10-19 (owner): npm publishing takes no stored credential — use npm Trusted Publishing
+  (GitHub Actions OIDC, workflow `publish.yml`) rather than an `NPM_TOKEN` secret, and keep
+  provenance on. When a release's tag lags the packaging that should ship under it, move the tag
+  rather than renumbering the version.
 
 ## Child DOX Index
 
@@ -174,7 +183,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `test/` | The acceptance gate: engine tests, real stdio MCP tests, the golden determinism manifest, canvas smoke |
 | `scripts/` | Asset-pack setup and the generators behind every committed image in `docs/img/`, plus `npm run golden` |
 | `docs/` | Durable internals: port map, invariants, upstream capability record |
-| `.github/` | CI: the matrix, the pinned asset-pack checkout, the no-assets assertion; plus issue/PR templates and Dependabot |
+| `.github/` | CI: the matrix, the pinned asset-pack checkout, the no-assets assertion; the publish workflow (trusted-publishing OIDC, provenance, tag/version guard); plus issue/PR templates and Dependabot |
 
 Root-owned, with no child of their own: `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 `SECURITY.md`, `LICENSE`, `package.json`, `.gitignore`, `.gitattributes`.
