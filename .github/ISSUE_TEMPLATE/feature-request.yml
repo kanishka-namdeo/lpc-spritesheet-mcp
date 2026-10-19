@@ -11,12 +11,15 @@ body:
         Universal-LPC-Spritesheet-Character-Generator web app, and its default is
         to match that app's behavior exactly. Anything that diverges must be an
         explicit, documented improvement — so please say which side of that line
-        your request sits on. The current tool surface is nine tools
+        your request sits on. The current tool surface is thirteen tools
         (`generate_spritesheet`, `get_animation`, `get_preview`, `export_character`,
         `validate_sheet`, `list_categories`, `list_items`, `list_palettes`,
-        `list_animations`) and one env var (`LPC_ASSETS_DIR`). `export_character`
-        (engine bundle: sheet PNG, atlas JSON, per-animation/frame PNGs, credits) and
-        `validate_sheet` (layout/character/catalog audit) arrived in `1.3.0` — a bundle or
+        `list_animations`, `list_presets`, `random_character`, `generate_batch`,
+        `design_character`), three MCP prompts, three MCP resources, and one required env var
+        (`LPC_ASSETS_DIR`; the `LPC_AI_*` vars only opt `design_character` into an AI endpoint).
+        `export_character` (engine bundle: sheet PNG, atlas JSON, per-animation/frame PNGs, credits) and
+        `validate_sheet` (layout/character/catalog audit) arrived in `1.3.0`, the preset,
+        random-roll, batch, and AI-design tools in `1.4.0` — a bundle or
         audit request should say why it does not fit them.
 
   - type: textarea
