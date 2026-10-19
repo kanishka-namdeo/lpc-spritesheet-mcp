@@ -17,9 +17,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createCanvas } from "@napi-rs/canvas";
-import { assetCandidates, hasAssets } from "./assets-dir.js";
+import fs from "node:fs";
+import path from "node:path";
+import { assetCandidates, hasAssets, packRevision } from "./assets-dir.js";
 import { Catalog } from "./engine/catalog.js";
 import { SpriteEngine } from "./engine/sheet.js";
 import {
@@ -35,9 +41,16 @@ import {
   rowBlockYOffset,
 } from "./engine/constants.js";
 import { customAnimations, customAnimationBase } from "./engine/custom-animations.js";
-import { renderAndSave, errorPayload, unknownArgWarnings, CharacterRequestError, buildSelections } from "./character.js";
+import { normalizeSelections } from "./engine/selection.js";
+import { getAllCredits, creditsToCsv, creditsToTxt } from "./engine/credits.js";
+import { generatorUrl } from "./spec.js";
+import { renderAndSave, errorPayload, unknownArgWarnings, CharacterRequestError, buildSelections, describeSelections, DEFAULT_OUTPUT_DIR, timestamp } from "./character.js";
 import { exportBundle, ATLAS_FORMATS } from "./export.js";
 import { validateLayout, validateCharacter, validateCatalog, summarize } from "./validate.js";
+import { listPresets, presetNames } from "./presets.js";
+import { randomCharacter } from "./random.js";
+import { encodeAnimatedGif, gifFrameDelay } from "./engine/gif.js";
+import { aiConfigFromEnv, designCharacter as designCharacterWithAI, buildCatalogDigest, VALID_AI_MODELS as AI_MODELS } from "./ai.js";
 
 /**
  * Locate the Universal-LPC-Spritesheet-Character-Generator asset clone
@@ -317,11 +330,11 @@ function listAnimations() {
 // MCP server
 // ---------------------------------------------------------------------------
 
-const SERVER_VERSION = "1.3.0";
+const SERVER_VERSION = "1.4.0";
 
 const server = new Server(
   { name: "lpc-spritesheet", version: SERVER_VERSION },
-  { capabilities: { tools: {} } },
+  { capabilities: { tools: {}, prompts: {}, resources: {} } },
 );
 
 const CHARACTER_PROPS = {
@@ -329,6 +342,10 @@ const CHARACTER_PROPS = {
     type: "string",
     enum: [...BODY_TYPES],
     description: "Body type. Default: male.",
+  },
+  preset: {
+    type: "string",
+    description: "Named starting character from list_presets (e.g. knight, mage, blacksmith). Its selections/colors/bodyType form the base; explicit selections/colors merge on top.",
   },
   selections: {
     type: "object",
@@ -374,6 +391,20 @@ const CHAR_ARG_KEYS = Object.keys(CHARACTER_PROPS);
 const { output_path: _unusedOutputPath, ...BUNDLE_CHARACTER_PROPS } = CHARACTER_PROPS;
 const BUNDLE_ARG_KEYS = [...Object.keys(BUNDLE_CHARACTER_PROPS), "output_dir", "mode", "atlas_format"];
 
+// Preview-strip arguments shared by get_preview, random_character and design_character.
+const PREVIEW_PROPS = {
+  animation: { type: "string", description: "Standard animation name. Default: walk." },
+  direction: { type: "string", enum: [...DIRECTIONS], description: "Default: down. (hurt/climb have a single facing; any direction is accepted.)" },
+  scale: { type: "integer", minimum: 1, maximum: 8, description: "Nearest-neighbor upscale factor. Default 1 (2 for the random/design preview conveniences)." },
+};
+
+// Arguments random_character and generate_batch share.
+const RANDOM_PROPS = {
+  seed: { type: "string", description: "Any string; the same seed always produces the same character(s). Default: empty string." },
+  gear: { type: "string", enum: ["bare", "civilian", "soldier", "fancy"], description: "Gear profile: how likely weapons/armour/hats are. Default: civilian." },
+  complete_only: { type: "boolean", description: "Only pick items that paint both walk and idle rows for always-visible groups, so random characters never have empty core rows. Default: true." },
+};
+
 // validate_sheet renders but never writes, so the output and sidecar arguments are taken away too.
 const {
   output_path: _validateNoPath,
@@ -405,7 +436,7 @@ const TOOLS = [
   {
     name: "get_preview",
     description:
-      "Generate a character and return a small horizontal strip PNG of one animation's playback cycle for one direction — quick visual check of a character design.",
+      "Generate a character and return a small horizontal strip PNG of one animation's playback cycle for one direction — quick visual check of a character design. format:gif returns the same cycle as a looping animated GIF (correct LPC playback order, transparency preserved) — small enough to come back inline so a character can be SEEN walking, not just inspected.",
     inputSchema: {
       type: "object",
       properties: {
@@ -413,6 +444,8 @@ const TOOLS = [
         animation: { type: "string", description: "Standard animation name. Default: walk." },
         direction: { type: "string", enum: [...DIRECTIONS], description: "Default: down. (hurt/climb have a single facing; any direction is accepted.)" },
         scale: { type: "integer", minimum: 1, maximum: 8, description: "Nearest-neighbor upscale factor. Default 1." },
+        format: { type: "string", enum: ["png", "gif"], description: "png = strip image (default). gif = looping animated GIF." },
+        fps: { type: "number", minimum: 1, maximum: 30, description: "gif only: playback ticks per second. The LPC cycle already encodes per-frame holds (idle 0,0,1; sit holds 5 ticks), so one uniform tick rate is correct playback. Default 10 (= the web app's default)." },
       },
     },
   },
@@ -500,6 +533,61 @@ const TOOLS = [
     description: "List all animations with their row layout on the universal sheet (rows, frame counts, playback cycles) and the custom-animation definitions.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "list_presets",
+    description: "List the curated character presets (knight, mage, blacksmith, farmer, ...) that any render tool accepts as preset: \"<name>\" — one call instead of a dozen discovery calls.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "random_character",
+    description:
+      "Roll a coherent random character from a seed: same seed → same character, forever. Returns ready-to-render selections/colors (feed them to generate_spritesheet/export_character), the upstream generator URL, and by default an inline walk preview strip so you can see it. Gear profiles (bare/civilian/soldier/fancy) tune how armed and fancy the roll is; complete_only keeps always-visible items to those that paint walk+idle.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...RANDOM_PROPS,
+        bodyType: { type: "string", enum: [...BODY_TYPES], description: "Pin the body type instead of a weighted roll." },
+        preview: { type: "boolean", description: "Also render a walk preview strip (inline PNG). Default: true." },
+        ...PREVIEW_PROPS,
+        output_path: { type: "string", description: "Optional PNG path for the preview strip. Default: lpc-spritesheet/lpc-random-<seed>-<animation>-<direction>.png under the OS temp directory." },
+      },
+    },
+  },
+  {
+    name: "generate_batch",
+    description:
+      "Populate a village in one call: generate N random characters from one seed (character i uses seed \"<seed>:<i>\"), each rendered to its own directory with a full spritesheet, a walk preview, credits, plus a batch manifest.json, one rolled-up credits file, and index.png — a contact grid showing every character's walk frame. Same seed → same village.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...RANDOM_PROPS,
+        count: { type: "integer", minimum: 1, maximum: 25, description: "How many characters. Default 5, max 25." },
+        bodyType: { type: "string", enum: [...BODY_TYPES], description: "Pin every character to one body type. Default: weighted roll per character." },
+        output_dir: { type: "string", description: "Directory for the batch (created if missing). Default: lpc-batch-<seed>-<timestamp>/ under the OS temp directory." },
+        sheets: { type: "boolean", description: "Write a full 832x3456+ spritesheet PNG per character. Default: true." },
+        previews: { type: "boolean", description: "Write a walk-down preview strip per character. Default: true." },
+        index: { type: "boolean", description: "Write index.png (contact grid of every character's walk-down frame). Default: true." },
+        include_credits: { type: "boolean", description: "Per-character credits sidecars plus one rolled-up batch-credits.csv/.txt. Default: true." },
+      },
+      required: ["count"],
+    },
+  },
+  {
+    name: "design_character",
+    description:
+      "Turn a natural-language brief (\"a tanned blacksmith with a leather apron and a hammer\") into ready-to-render selections/colors using an LLM grounded on this pack's catalog. OPT-IN: only available when LPC_AI_API_KEY is set in the server environment; without it the tool returns a clear setup error. Returns selections, colors, the model's rationale, the upstream generator URL, and by default an inline walk preview of the result.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "The character brief in plain language. Required." },
+        model: { type: "string", enum: [...AI_MODELS], description: "Per-call model override. Default: LPC_AI_MODEL env or qwen3.7-plus." },
+        preview: { type: "boolean", description: "Also render a walk preview strip (inline PNG). Default: true." },
+        ...PREVIEW_PROPS,
+        output_path: { type: "string", description: "Optional PNG path for the preview strip." },
+      },
+      required: ["prompt"],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -527,6 +615,7 @@ const TOOL_META = {
     type: "object",
     properties: {
       mode: STR_SCHEMA,
+      atlasFormat: STR_SCHEMA,
       outputDir: STR_SCHEMA,
       image: { type: "object", properties: { width: INT_SCHEMA, height: INT_SCHEMA, frameSize: INT_SCHEMA }, required: ["width", "height", "frameSize"] },
       frames: INT_SCHEMA,
@@ -596,6 +685,49 @@ const TOOL_META = {
       customNote: STR_SCHEMA,
     },
     required: ["sheetLayout", "standard", "custom", "customNote"],
+  } },
+  list_presets: { title: "List character presets", annotations: READ_ONLY, outputSchema: {
+    type: "object",
+    properties: {
+      note: STR_SCHEMA,
+      presets: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: STR_SCHEMA,
+            description: STR_SCHEMA,
+            bodyType: STR_SCHEMA,
+            groups: STRING_ARRAY,
+          },
+          required: ["name", "description", "bodyType", "groups"],
+        },
+      },
+    },
+    required: ["note", "presets"],
+  } },
+  random_character: { title: "Roll a random character", annotations: WRITES_FILE },
+  generate_batch: { title: "Generate an NPC batch", annotations: WRITES_FILE, outputSchema: {
+    type: "object",
+    properties: {
+      count: INT_SCHEMA,
+      seed: STR_SCHEMA,
+      outputDir: STR_SCHEMA,
+      characters: { type: "array", items: { type: "object" } },
+      index: { type: "object" },
+      manifest: STR_SCHEMA,
+      credits: { type: "object" },
+      warnings: STRING_ARRAY,
+    },
+    required: ["count", "seed", "outputDir", "characters", "manifest"],
+  } },
+  design_character: { title: "Design a character from a description", annotations: {
+    // The one open-world tool: it calls an external AI endpoint, but only when the
+    // operator configured LPC_AI_* env vars — the default server stays offline.
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
   } },
 };
 
@@ -774,11 +906,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (args.scale !== undefined && (!Number.isInteger(args.scale) || args.scale < 1 || args.scale > 8)) {
           throw new CharacterRequestError("scale must be an integer between 1 and 8.");
         }
+        const format = args.format ?? "png";
+        if (format !== "png" && format !== "gif") {
+          throw new CharacterRequestError(`Unknown format "${format}". Valid: png, gif.`);
+        }
+        const fps = args.fps ?? 10;
+        if (args.fps !== undefined && (typeof fps !== "number" || fps < 1 || fps > 30)) {
+          throw new CharacterRequestError("fps must be a number between 1 and 30.");
+        }
         return jsonResultWithImage(
           await renderAndSave(engine, args, {
             serverVersion: SERVER_VERSION,
             defaultName: `lpc-preview-${animation}-${direction}`,
-            preWarnings: unknownArgWarnings(args, [...CHAR_ARG_KEYS, "animation", "direction", "scale"]),
+            preWarnings: unknownArgWarnings(args, [...CHAR_ARG_KEYS, "animation", "direction", "scale", "format", "fps"]),
             extract: ({ canvas }) => {
               const strip = engine.extractPreviewStrip(canvas, animation, direction);
               let out = strip.canvas;
@@ -789,15 +929,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 ctx.drawImage(out, 0, 0, scaled.width, scaled.height);
                 out = scaled;
               }
+              // GIF: cut the (scaled) strip into per-frame canvases and encode with the
+              // LPC cycle as the timing table — a uniform tick rate is correct playback
+              // because the cycle already repeats held frames (idle 0,0,1, sit ×5).
+              let gif = null;
+              if (format === "gif") {
+                const cell = FRAME_SIZE * scale;
+                const frames = [];
+                for (let i = 0; i < strip.frames.length; i++) {
+                  const frameCanvas = createCanvas(cell, cell);
+                  const frameCtx = frameCanvas.getContext("2d");
+                  frameCtx.imageSmoothingEnabled = false;
+                  frameCtx.drawImage(out, i * cell, 0, cell, cell, 0, 0, cell, cell);
+                  frames.push({ canvas: frameCanvas, delayMs: gifFrameDelay(fps) });
+                }
+                gif = encodeAnimatedGif(frames);
+              }
               return {
                 canvas: out,
+                gif,
                 layout: null,
                 inline: true,
                 extra: {
                   animation,
                   direction,
                   scale,
-                  frames: strip.frames,
+                  ...(format === "gif" ? { fps, frames: strip.frames.length } : { frames: strip.frames }),
                   frameSize: FRAME_SIZE * scale,
                 },
               };
@@ -805,6 +962,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }),
           schema,
         );
+      }
+      case "list_presets":
+        return jsonResult({
+          note: "Render any preset with preset: \"<name>\" on generate_spritesheet / get_animation / get_preview / export_character; explicit selections/colors merge on top of the preset.",
+          presets: listPresets(),
+        }, SCHEMA_BY_TOOL.get("list_presets"));
+      case "random_character": {
+        const payload = await randomCharacterTool(engine, args, catalog);
+        return payload?.error ? jsonError(payload) : jsonResultWithImage(payload, SCHEMA_BY_TOOL.get("random_character"));
+      }
+      case "generate_batch":
+        return jsonResultOrError(await generateBatchTool(engine, args, catalog), SCHEMA_BY_TOOL.get("generate_batch"));
+      case "design_character": {
+        const payload = await designCharacterTool(engine, args, catalog);
+        return payload?.error ? jsonError(payload) : jsonResultWithImage(payload, SCHEMA_BY_TOOL.get("design_character"));
       }
       default:
         return jsonError({ error: `Unknown tool: ${name}` });
@@ -820,7 +992,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
  * does not check conformance itself, so the pair is maintained here rather than hoped for.
  */
 function jsonResult(payload, schema) {
-  const { inlinePng, ...clean } = payload;
+  const { inlinePng, inlineImage, ...clean } = payload;
   return {
     content: [{ type: "text", text: JSON.stringify(clean, null, 2) }],
     ...(schema ? { structuredContent: clean } : {}),
@@ -830,15 +1002,19 @@ function jsonResult(payload, schema) {
 /**
  * `get_preview` crops are 2-4 KB, so the client can look at the character without opening a file.
  * A full sheet is 188-280 KB, which is not something to base64 into a conversation — the path is
- * the right primitive for those, so anything over the cap comes back as text only.
+ * the right primitive for those, so anything over the cap comes back as text only. The image
+ * block is annotated `audience: ["user"]` + high priority: it is for the human to look at, not
+ * for the model to reason over — though nothing stops a client from showing it either way.
  */
 function jsonResultWithImage(payload, schema) {
   const result = jsonResult(payload, schema);
-  if (payload.inlinePng && payload.inlinePng.length <= MAX_INLINE_PNG_BYTES) {
+  const inline = payload.inlineImage ?? (payload.inlinePng ? { bytes: payload.inlinePng, mimeType: "image/png" } : null);
+  if (inline && inline.bytes.length <= MAX_INLINE_PNG_BYTES) {
     result.content.push({
       type: "image",
-      data: payload.inlinePng.toString("base64"),
-      mimeType: "image/png",
+      data: inline.bytes.toString("base64"),
+      mimeType: inline.mimeType,
+      annotations: { audience: ["user"], priority: 0.8 },
     });
   }
   return result;
@@ -851,6 +1027,490 @@ function jsonError(payload) {
 function jsonResultOrError(payload, schema) {
   return payload?.error ? jsonError(payload) : jsonResult(payload, schema);
 }
+
+// ---------------------------------------------------------------------------
+// random_character / generate_batch / design_character
+// ---------------------------------------------------------------------------
+
+/** Arguments the preview conveniences of random_character / design_character accept. */
+const PREVIEW_CONVENIENCE_KEYS = ["preview", "animation", "direction", "scale", "output_path"];
+
+/** Validate the shared preview-convenience args and return them normalized. */
+function previewConvenienceArgs(args, defaults = {}) {
+  const animation = args.animation ?? defaults.animation ?? "walk";
+  if (typeof animation !== "string" || !ANIMATION_CONFIGS[resolveAnimationName(animation)]) {
+    throw new CharacterRequestError(
+      `animation must be a standard animation name (got "${animation}"). Standard: ${Object.keys(ANIMATION_CONFIGS).join(", ")}.`,
+    );
+  }
+  const direction = args.direction ?? defaults.direction ?? "down";
+  if (typeof direction !== "string" || !DIRECTIONS.includes(direction)) {
+    throw new CharacterRequestError(`Unknown direction "${direction}". Valid: ${DIRECTIONS.join(", ")}.`);
+  }
+  const scale = args.scale ?? defaults.scale ?? 2;
+  if (args.scale !== undefined && (!Number.isInteger(args.scale) || args.scale < 1 || args.scale > 8)) {
+    throw new CharacterRequestError("scale must be an integer between 1 and 8.");
+  }
+  return { animation, direction, scale };
+}
+
+/**
+ * Render a rolled/designed character config as a preview strip (the shared convenience of
+ * random_character and design_character). Returns the render payload or null when disabled.
+ */
+async function renderPreviewOf(engine, args, character, { defaultName }) {
+  const { animation, direction, scale } = previewConvenienceArgs(args);
+  const preWarnings = unknownArgWarnings(args, [
+    ...Object.keys(RANDOM_PROPS), "bodyType", ...PREVIEW_CONVENIENCE_KEYS,
+  ]);
+  return renderAndSave(engine, {
+    bodyType: character.bodyType,
+    selections: character.selections,
+    colors: character.colors,
+    output_path: args.output_path,
+    animation,
+    direction,
+    scale,
+  }, {
+    serverVersion: SERVER_VERSION,
+    defaultName,
+    preWarnings,
+    extract: ({ canvas }) => {
+      const strip = engine.extractPreviewStrip(canvas, animation, direction);
+      let out = strip.canvas;
+      if (scale > 1) {
+        const scaled = createCanvas(out.width * scale, out.height * scale);
+        const ctx = scaled.getContext("2d");
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(out, 0, 0, scaled.width, scaled.height);
+        out = scaled;
+      }
+      return {
+        canvas: out,
+        layout: null,
+        inline: true,
+        extra: { animation, direction, scale, frames: strip.frames, frameSize: FRAME_SIZE * scale },
+      };
+    },
+  });
+}
+
+/** random_character: roll from a seed, optionally render the preview inline. */
+async function randomCharacterTool(engine, args, catalog) {
+  let roll;
+  try {
+    roll = randomCharacter(catalog, {
+      seed: args.seed,
+      bodyType: args.bodyType ?? null,
+      gear: args.gear,
+      completeOnly: args.complete_only,
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+  const payload = {
+    seed: roll.seed,
+    bodyType: roll.bodyType,
+    selections: roll.selections,
+    colors: roll.colors,
+    generatorUrl: null, // filled after normalization below
+    notes: roll.notes,
+    note: "selections/colors are ready for generate_spritesheet / get_preview / export_character. Same seed → same character.",
+  };
+  if (args.preview !== false) {
+    const preview = await renderPreviewOf(engine, args, roll, {
+      defaultName: `lpc-random-${String(roll.seed).replace(/[^\w.-]+/g, "_") || "roll"}`,
+    });
+    payload.preview = preview;
+    payload.generatorUrl = preview.generatorUrl;
+    payload.inlineImage = preview.inlineImage;
+    delete preview.inlineImage;
+    delete preview.note;
+  } else {
+    const selections = normalizeSelections(catalog, roll.bodyType, roll.selections, roll.colors);
+    payload.generatorUrl = generatorUrl(catalog, { bodyType: roll.bodyType, selections });
+  }
+  return payload;
+}
+
+/** generate_batch: a village in one call — N seeded characters, one bundle. */
+async function generateBatchTool(engine, args, catalog) {
+  const count = args.count;
+  if (!Number.isInteger(count) || count < 1 || count > 25) {
+    return { error: "count must be an integer between 1 and 25." };
+  }
+  const seed = args.seed === undefined || args.seed === null ? "" : String(args.seed);
+  const dir = path.resolve(
+    args.output_dir || path.join(DEFAULT_OUTPUT_DIR, `lpc-batch-${seed.replace(/[^\w.-]+/g, "_") || "roll"}-${timestamp()}`),
+  );
+  fs.mkdirSync(dir, { recursive: true });
+
+  const wantSheets = args.sheets !== false;
+  const wantPreviews = args.previews !== false;
+  const wantIndex = args.index !== false;
+  const wantCredits = args.include_credits !== false;
+  const preWarnings = unknownArgWarnings(args, [
+    ...Object.keys(RANDOM_PROPS), "count", "bodyType", "output_dir", "sheets", "previews", "index", "include_credits",
+  ]);
+
+  /** Write a canvas as PNG, creating parent directories as needed. */
+  const writePng = (file, canvas) => {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, canvas.toBuffer("image/png"));
+  };
+
+  const characters = [];
+  const sheets = []; // keep the rendered canvases so the index grid never re-renders
+  const allCredits = new Map(); // fileName -> entry, rolled up across the batch
+  for (let i = 0; i < count; i++) {
+    const roll = randomCharacter(catalog, {
+      seed: `${seed}:${i}`,
+      bodyType: args.bodyType ?? null,
+      gear: args.gear,
+      completeOnly: args.complete_only,
+    });
+    const selections = normalizeSelections(catalog, roll.bodyType, roll.selections, roll.colors);
+    const { canvas, warnings } = await engine.renderCharacter({
+      bodyType: roll.bodyType,
+      selections,
+      matchBodyColorEnabled: true,
+    });
+    sheets.push(canvas);
+
+    const sub = path.join(dir, String(i + 1).padStart(2, "0"));
+    fs.mkdirSync(sub, { recursive: true });
+    const files = {};
+    if (wantSheets) {
+      writePng(path.join(sub, "sheet.png"), canvas);
+      files.sheet = path.join(sub, "sheet.png");
+    }
+    if (wantPreviews) {
+      const strip = engine.extractPreviewStrip(canvas, "walk", "down");
+      writePng(path.join(sub, "preview.png"), strip.canvas);
+      files.preview = path.join(sub, "preview.png");
+    }
+    const credits = getAllCredits(catalog, selections, roll.bodyType);
+    if (wantCredits && credits.length > 0) {
+      fs.writeFileSync(path.join(sub, "character-credits.csv"), creditsToCsv(credits));
+      fs.writeFileSync(path.join(sub, "character-credits.txt"), creditsToTxt(credits));
+      files.creditsCsv = path.join(sub, "character-credits.csv");
+      files.creditsTxt = path.join(sub, "character-credits.txt");
+      for (const entry of credits) allCredits.set(entry.fileName, entry);
+    }
+    characters.push({
+      index: i + 1,
+      seed: roll.seed,
+      bodyType: roll.bodyType,
+      selections: roll.selections,
+      colors: roll.colors,
+      generatorUrl: generatorUrl(catalog, { bodyType: roll.bodyType, selections }),
+      notes: roll.notes,
+      warnings,
+      files,
+    });
+  }
+
+  // Contact grid: every character's walk-down standing frame (the pose that identifies
+  // a design at a glance), laid out left-to-right, top-to-bottom. No labels are drawn:
+  // the manifest carries cell -> character index instead.
+  let index = null;
+  if (wantIndex) {
+    const cell = FRAME_SIZE;
+    const columns = Math.min(count, Math.ceil(Math.sqrt(count)));
+    const rows = Math.ceil(count / columns);
+    const grid = createCanvas(columns * cell, rows * cell);
+    const ctx = grid.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    sheets.forEach((canvas, i) => {
+      const frame = engine.extractFrame(canvas, "walk", "down", 0);
+      ctx.drawImage(frame, (i % columns) * cell, Math.floor(i / columns) * cell);
+    });
+    writePng(path.join(dir, "index.png"), grid);
+    index = { file: path.join(dir, "index.png"), columns, rows, cellSize: cell };
+  }
+
+  let creditsOut;
+  if (wantCredits && allCredits.size > 0) {
+    const entries = [...allCredits.values()];
+    fs.writeFileSync(path.join(dir, "batch-credits.csv"), creditsToCsv(entries));
+    fs.writeFileSync(path.join(dir, "batch-credits.txt"), creditsToTxt(entries));
+    creditsOut = {
+      csv: path.join(dir, "batch-credits.csv"),
+      txt: path.join(dir, "batch-credits.txt"),
+      entries: entries.length,
+    };
+  }
+
+  const manifest = {
+    generator: { name: "lpc-spritesheet-mcp", version: SERVER_VERSION },
+    pack: { revision: packRevision(catalog.assetsDir) },
+    seed,
+    count,
+    outputDir: dir,
+    ...(index ? { index: { file: "index.png", columns: index.columns, rows: index.rows, cellSize: index.cellSize } } : {}),
+    characters: characters.map(({ files, ...character }) => ({
+      ...character,
+      files: Object.fromEntries(
+        Object.entries(files).map(([k, v]) => [k, path.relative(dir, v)]),
+      ),
+    })),
+    credits: creditsOut && { entries: creditsOut.entries, files: ["batch-credits.csv", "batch-credits.txt"] },
+    warnings: preWarnings,
+  };
+  const manifestPath = path.join(dir, "manifest.json");
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+  return {
+    count,
+    seed,
+    outputDir: dir,
+    characters,
+    ...(index ? { index } : {}),
+    manifest: manifestPath,
+    ...(creditsOut ? { credits: creditsOut } : {}),
+    warnings: preWarnings,
+    note: `Each character's selections/colors render the same character again (seeds ${seed}:0..${count - 1}). index.png shows every walk frame; manifest.json indexes the batch.`,
+  };
+}
+
+/**
+ * design_character: natural language → selections/colors through an OpenAI-compatible
+ * endpoint, then optionally render the preview inline. Strictly opt-in: without
+ * LPC_AI_API_KEY the tool answers with a setup error instead of reaching the network.
+ */
+async function designCharacterTool(engine, args, catalog) {
+  const prompt = args.prompt;
+  if (!prompt || typeof prompt !== "string") {
+    return { error: "prompt is required (a natural-language character brief)." };
+  }
+  const ai = aiConfigFromEnv(process.env);
+  if (!ai) {
+    return {
+      error: "AI-assisted design is not configured on this server.",
+      hint: "Set LPC_AI_API_KEY in the server's environment (MCP client env block) to enable it. Optional: LPC_AI_BASE_URL (default: Dashscope-compatible endpoint), LPC_AI_MODEL (one of " + AI_MODELS.join(", ") + "). The server stays fully offline without these.",
+    };
+  }
+  const model = args.model ?? ai.model;
+  const preWarnings = unknownArgWarnings(args, ["prompt", "model", ...PREVIEW_CONVENIENCE_KEYS]);
+
+  const aiCall = (repair) => designCharacterWithAI({
+    prompt,
+    digest: buildCatalogDigest(catalog),
+    baseUrl: ai.baseUrl,
+    apiKey: ai.apiKey,
+    model,
+    ...(repair ? { repair } : {}),
+  });
+
+  let designed = await aiCall();
+
+  // The model's picks are still just a proposal: normalize them so invalid itemIds or
+  // colors surface as actionable errors, exactly like hand-written selections. One
+  // self-healing round feeds the failure (plus the valid itemIds for the groups the
+  // model used) back to the model — inventing ids is the classic failure and this
+  // usually fixes it without bothering the caller.
+  const normalizeOrError = (spec) => {
+    try {
+      return {
+        ok: true,
+        selections: normalizeSelections(catalog, spec.bodyType ?? "male", spec.selections, spec.colors ?? {}),
+      };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  };
+  let normalized = normalizeOrError(designed);
+  if (!normalized.ok) {
+    const validItems = {};
+    for (const group of Object.keys(designed.selections ?? {})) {
+      if (!catalog.byTypeName.has(group)) continue;
+      validItems[group] = catalog.getItemsByType(group).map((i) => i.itemId).slice(0, 80);
+    }
+    try {
+      const repaired = await aiCall({
+        spec: { bodyType: designed.bodyType, selections: designed.selections, colors: designed.colors },
+        error: normalized.error,
+        validItems,
+      });
+      const retry = normalizeOrError(repaired);
+      if (retry.ok) {
+        designed = { ...repaired, bodyType: repaired.bodyType ?? designed.bodyType };
+        normalized = retry;
+      }
+    } catch {
+      // the repair round itself failed (network, unparseable reply) — fall through
+      // to the original error below
+    }
+  }
+  if (!normalized.ok) {
+    return {
+      error: `The model proposed a character this pack cannot render: ${normalized.error}`,
+      proposal: { bodyType: designed.bodyType, selections: designed.selections, colors: designed.colors },
+      hint: "Rephrase the brief (simpler descriptions pick plainer items), or assemble the character by hand with list_categories / list_items.",
+    };
+  }
+  const { selections } = normalized;
+  const bodyType = designed.bodyType ?? "male";
+  const payload = {
+    model,
+    rationale: designed.rationale ?? null,
+    bodyType,
+    selections: designed.selections,
+    colors: designed.colors ?? {},
+    resolved: describeSelections(selections),
+    generatorUrl: generatorUrl(catalog, { bodyType, selections }),
+    warnings: preWarnings,
+    note: "selections/colors are ready for generate_spritesheet / get_preview / export_character.",
+  };
+  if (args.preview !== false) {
+    const preview = await renderPreviewOf(
+      engine,
+      { ...args, seed: undefined },
+      { bodyType, selections: designed.selections, colors: designed.colors ?? {} },
+      { defaultName: "lpc-designed" },
+    );
+    payload.preview = preview;
+    payload.inlineImage = preview.inlineImage;
+    delete preview.inlineImage;
+  }
+  return payload;
+}
+
+// ---------------------------------------------------------------------------
+// Prompts: scripted agent flows that chain the tools well (MCP prompts are
+// client-visible; an agent that picks one gets the whole workflow in one shot).
+// ---------------------------------------------------------------------------
+
+const PROMPTS = [
+  {
+    name: "design-a-character",
+    description: "Interview the user about a character, then render it: discover items, assemble selections, preview, iterate, and finish with a full spritesheet + engine bundle.",
+    arguments: [
+      { name: "brief", description: "Optional starting brief, e.g. 'a hooded ranger with a longbow'", required: false },
+    ],
+  },
+  {
+    name: "populate-a-village",
+    description: "Generate a reproducible batch of NPC villagers (generate_batch) from one seed, show the contact grid, and export the keepers as engine bundles.",
+    arguments: [
+      { name: "count", description: "How many villagers (default 8)", required: false },
+      { name: "seed", description: "Batch seed; same seed → same village", required: false },
+    ],
+  },
+  {
+    name: "export-for-my-engine",
+    description: "Pick the right atlas format and bundle layout for a target engine (Phaser/PixiJS, Godot 4, Unity, libGDX, Aseprite/Bevy tooling) and run the export.",
+    arguments: [
+      { name: "engine", description: "Target engine or toolchain", required: false },
+    ],
+  },
+];
+
+const PROMPT_BODIES = {
+  "design-a-character": (args) => `Design an LPC character with the user${args.brief ? ` — they already have a brief: "${args.brief}"` : " — interview them briefly first (role, vibe, one signature item)"}.
+
+Workflow:
+1) list_presets — offer a close preset as the starting point (presets render in one call and merge with overrides).
+2) For anything custom: list_categories → list_items (search + fields:["itemId","name"] to stay small) → list_palettes for colors.
+3) Assemble selections/colors and run get_preview (format:gif, scale:2, animation:walk) so the user can SEE the character walk.
+4) Iterate on their feedback — get_preview again per change (renders are milliseconds).
+5) Finish with export_character (mode:animation, atlas_format for their engine) and hand over the paths, the generatorUrl for tweaking in the web app, and the credits files (the asset licenses require keeping them with redistributed art).`,
+  "populate-a-village": (args) => `Generate ${args.count || 8} NPC villagers reproducibly${args.seed ? ` from seed "${args.seed}"` : " (ask the user for a seed or pick a memorable one)"}.
+
+Workflow:
+1) generate_batch with that seed and count (gear:civilian; complete_only stays on so nobody has empty rows). Read index.png — it shows every villager at a glance.
+2) Show the user the batch summary + the index image; let them pick keepers and call out re-rolls.
+3) For each keeper: either re-render from its recorded selections/colors (same character, no reroll) or bump its own seed for a variation.
+4) export_character the keepers (mode:animation) so each lands as an engine-ready bundle; remind about batch-credits.csv covering everyone.`,
+  "export-for-my-engine": (args) => `Export a character for ${args.engine || "the user's engine"}.
+
+Format guide:
+- Phaser 3/4 or PixiJS → atlas_format "texturepacker" (JSON Hash + animations map: play walk as animations.walk_down, frames 2..9).
+- Godot 4 → atlas_format "godot": sheet-spriteframes.tres with AtlasTextures + per-direction SpriteFrames animations (loop, 10 fps) — point an AnimatedSprite2D at it.
+- Unity → atlas_format "unity": sheet.png.meta pre-slices sprites (Point filter, 64 px/unit, feet pivot); the cycle map rides in userData for scripting .anim clips.
+- libGDX → atlas_format "libgdx": sheet.atlas text regions (Nearest filtering).
+- Aseprite-adjacent tooling / Bevy sprite plugins → atlas_format "aseprite": frames + frameTags.
+Workflow: confirm the engine, run export_character with mode:animation (or mode:frames if the engine prefers loose frame PNGs), then walk the consumer through what each file is (manifest.json explains the layout, offsets and custom blocks).`,
+};
+
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: PROMPTS }));
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: args = {} } = request.params;
+  const build = PROMPT_BODIES[name];
+  if (!build) {
+    return {
+      isError: true,
+      content: [{ type: "text", text: `Unknown prompt: ${name}. Available: ${Object.keys(PROMPT_BODIES).join(", ")}.` }],
+    };
+  }
+  return {
+    description: PROMPTS.find((p) => p.name === name)?.description,
+    messages: [{ role: "user", content: { type: "text", text: build(args) } }],
+  };
+});
+
+// ---------------------------------------------------------------------------
+// Resources: reference material agents can cite without a tool call.
+// ---------------------------------------------------------------------------
+
+const RESOURCES = [
+  {
+    uri: "lpc://sheet-layout",
+    name: "Universal LPC sheet layout",
+    description: "The stable 13x54 grid: every animation's row, direction rows, frame counts, playback cycles and custom-block rules. What an engine integrator needs to slice any LPC sheet.",
+    mimeType: "application/json",
+  },
+  {
+    uri: "lpc://licensing",
+    name: "LPC asset licensing cheat sheet",
+    description: "What the licenses on the art require (attribution, share-alike), what this server does about it (credits sidecars on every render), and what redistribution must keep.",
+    mimeType: "text/plain",
+  },
+  {
+    uri: "lpc://presets",
+    name: "Character preset library",
+    description: "The curated presets with their selections, colors and body types — renderable directly with preset: \"<name>\".",
+    mimeType: "application/json",
+  },
+];
+
+const LICENSING_TEXT = `LPC asset licensing cheat sheet
+===============================
+
+The sprites this server renders come from the Liberated Pixel Cup asset pack: a mix of
+OGA-BY 3.0, CC-BY-SA 3.0, CC-BY 3.0/4.0 and GPL held by many artists. Two duties follow:
+
+1. ATTRIBUTION is unconditional. Every render writes <name>-credits.csv/.txt beside the
+   PNG naming the authors, licenses and links of the exact assets used. Keep those files
+   with any art you redistribute — dropping them is a licensing violation.
+
+2. SHARE-ALIKE (CC-BY-SA / GPL items) requires derivative art to ship under the same
+   license. Code using the art is generally unaffected, but check each item's license in
+   the credits file. Recolored palettes are still derivatives.
+
+This server's own code is GPL-3.0-only; the art keeps its own licenses and the two are
+never conflated. When in doubt, read the per-render credits CSV — it is the source of
+truth for exactly what went into that PNG.`;
+
+const RESOURCE_BODIES = {
+  "lpc://sheet-layout": () => JSON.stringify(listAnimations(), null, 2),
+  "lpc://licensing": () => LICENSING_TEXT,
+  "lpc://presets": () => JSON.stringify(listPresets(), null, 2),
+};
+
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: RESOURCES }));
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri } = request.params;
+  const body = RESOURCE_BODIES[uri];
+  if (!body) {
+    throw new Error(`Unknown resource: ${uri}. Available: ${Object.keys(RESOURCE_BODIES).join(", ")}.`);
+  }
+  return {
+    contents: [{ uri, mimeType: RESOURCES.find((r) => r.uri === uri)?.mimeType, text: body() }],
+  };
+});
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

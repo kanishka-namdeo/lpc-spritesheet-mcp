@@ -18,9 +18,30 @@ import { getAllCredits, creditsToCsv, creditsToTxt } from "./engine/credits.js";
 import { packRevision } from "./assets-dir.js";
 import { buildSelections, describeSelections, DEFAULT_OUTPUT_DIR, timestamp } from "./character.js";
 import { buildCharacterSpec } from "./spec.js";
+import {
+  animationsMap,
+  asepriteAtlas,
+  godotSpriteFrames,
+  libgdxAtlas,
+  unityMeta,
+} from "./atlas-formats.js";
 
-/** TexturePacker "JSON Hash" is the dialect Phaser, LibGDX and most importers read. */
-export const ATLAS_FORMATS = ["texturepacker"];
+/**
+ * Atlas metadata dialects `export_character` can write. `texturepacker` (JSON Hash) is
+ * what Phaser, PixiJS and most importers read; the others target specific toolchains
+ * (Aseprite-adjacent incl. Bevy plugins, Godot 4, libGDX, Unity). One is chosen per
+ * bundle — the frame model is shared, only the serialization changes.
+ */
+export const ATLAS_FORMATS = ["texturepacker", "aseprite", "godot", "libgdx", "unity"];
+
+/** The bundle-relative atlas file each dialect writes. */
+const ATLAS_FILES = {
+  texturepacker: "sheet.atlas.texturepacker.json",
+  aseprite: "sheet.aseprite.json",
+  godot: "sheet-spriteframes.tres",
+  libgdx: "sheet.atlas",
+  unity: "sheet.png.meta",
+};
 
 const STANDARD_PNG = "sheet.png";
 
@@ -102,6 +123,10 @@ function sheetFrames(layout) {
  * TexturePacker JSON Hash. `rotated` and `trimmed` are honest false: this engine paints whole
  * fixed-size grid cells and never packs. `anchor`/pivot is the one invention — the LPC grid has
  * no per-frame hot spot, so every frame is centred and the manifest says so.
+ *
+ * `animations` is the cycle-correct playback map (TexturePacker/PixiJS convention): walk plays
+ * frames 2–9, idle holds 0,0,1, sit/emote hold each frame — so a consumer never re-derives
+ * the upstream playback order.
  */
 function texturepackerAtlas(frames, image, meta) {
   return {
@@ -118,6 +143,7 @@ function texturepackerAtlas(frames, image, meta) {
         },
       ]),
     ),
+    animations: animationsMap(standardRowBlocks(), meta.customBlocks ?? []),
     meta: {
       app: "lpc-spritesheet-mcp",
       version: meta.serverVersion,
@@ -175,12 +201,38 @@ export async function exportBundle(engine, args, { serverVersion, preWarnings = 
   files.push(STANDARD_PNG);
 
   const frames = sheetFrames(layout);
-  const atlasName = `sheet.atlas.${atlasFormat}.json`;
-  const atlas = texturepackerAtlas(frames, { width: canvas.width, height: canvas.height }, {
-    serverVersion,
-    packRevision: packRevision(engine.catalog.assetsDir),
-  });
-  fs.writeFileSync(path.join(dir, atlasName), JSON.stringify(atlas, null, 2));
+  const atlasName = ATLAS_FILES[atlasFormat];
+  const imageSize = { width: canvas.width, height: canvas.height };
+  const blocks = standardRowBlocks();
+  let atlasText;
+  if (atlasFormat === "texturepacker") {
+    atlasText = JSON.stringify(
+      texturepackerAtlas(frames, imageSize, {
+        serverVersion,
+        packRevision: packRevision(engine.catalog.assetsDir),
+        customBlocks: layout.custom,
+      }),
+      null,
+      2,
+    );
+  } else if (atlasFormat === "aseprite") {
+    atlasText = JSON.stringify(
+      asepriteAtlas(frames, imageSize, { serverVersion, imageName: STANDARD_PNG }),
+      null,
+      2,
+    );
+  } else if (atlasFormat === "godot") {
+    atlasText = godotSpriteFrames(frames, blocks, layout.custom, imageSize, {
+      imageName: STANDARD_PNG,
+    });
+  } else if (atlasFormat === "libgdx") {
+    atlasText = libgdxAtlas(frames, imageSize, { imageName: STANDARD_PNG });
+  } else {
+    atlasText = unityMeta(frames, imageSize, {
+      characterName: path.basename(dir),
+    });
+  }
+  fs.writeFileSync(path.join(dir, atlasName), atlasText);
   files.push(atlasName);
 
   // Per-animation strips, or per-frame cells. Orthogonal on purpose: `frames` is what an
@@ -267,9 +319,11 @@ export async function exportBundle(engine, args, { serverVersion, preWarnings = 
     generator: { name: "lpc-spritesheet-mcp", version: serverVersion },
     pack: { revision: packRevision(engine.catalog.assetsDir) },
     mode,
+    atlasFormat,
     bodyType,
     sheet: { file: STANDARD_PNG, width: canvas.width, height: canvas.height },
     layout,
+    animations: animationsMap(blocks, layout.custom),
     crops,
     frameCount: frames.length,
     files,
@@ -280,11 +334,13 @@ export async function exportBundle(engine, args, { serverVersion, preWarnings = 
 
   return {
     mode,
+    atlasFormat,
     outputDir: dir,
     image: { width: canvas.width, height: canvas.height, frameSize: FRAME_SIZE },
     frames: frames.length,
     files,
     layout,
+    animations: manifest.animations,
     atlas: path.join(dir, atlasName),
     manifest: path.join(dir, "manifest.json"),
     ...(characterJson ? { characterJson } : {}),

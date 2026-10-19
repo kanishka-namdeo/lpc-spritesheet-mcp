@@ -199,7 +199,14 @@ function pickMonospace(ctx) {
   for (const family of MONO_CANDIDATES) {
     ctx.font = `${FONT_PX}px "${family}"`;
     const i = ctx.measureText("i").width;
-    if (i > 0 && i === ctx.measureText("W").width) return family;
+    if (i > 0 && i === ctx.measureText("W").width) {
+      // Fontconfig silently substitutes a missing family, and some substitutes
+      // (CJK fallbacks) render Latin at full width — `i === W` still holds
+      // because BOTH advance a full cell, but every line then wraps at half the
+      // budgeted columns. A real monospace at this size advances at most ~0.75em;
+      // anything wider is a substitution, not the family asked for.
+      if (i <= FONT_PX * 0.75) return family;
+    }
   }
   return "monospace";
 }

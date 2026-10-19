@@ -1,7 +1,7 @@
 {
   "name": "lpc-spritesheet-mcp",
-  "version": "1.3.0",
-  "description": "MCP server that generates Universal LPC character spritesheets headlessly (no browser) from the LiberatedPixelCup asset pack: 657 items, 6 body types, palette recoloring, 15 standard animations plus oversize custom ones",
+  "version": "1.4.0",
+  "description": "MCP server that generates Universal LPC character spritesheets headlessly (no browser) from the LiberatedPixelCup asset pack: 657 items, 6 body types, palette recoloring, 15 standard animations plus oversize custom ones, animated GIF previews, seeded random characters and NPC batches, curated presets, multi-engine atlases (TexturePacker/Aseprite/Godot/libGDX/Unity), and opt-in AI-assisted design",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -41,7 +41,7 @@
     "demo": "node scripts/make-demo-gif.mjs",
     "golden": "node scripts/make-golden.mjs",
     "assets": "npm run diagrams && npm run showcase && npm run demo",
-    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/mcp-surface-test.mjs test/golden-test.mjs test/smoke-canvas.mjs"
+    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/mcp-surface-test.mjs test/golden-test.mjs test/smoke-canvas.mjs test/gif-test.mjs test/random-test.mjs test/presets-test.mjs test/atlas-formats-test.mjs test/url-test.mjs test/ai-test.mjs test/mcp-new-tools-test.mjs"
   },
   "repository": {
     "type": "git",
@@ -53,9 +53,7 @@
   "homepage": "https://github.com/kanishka-namdeo/lpc-spritesheet-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@napi-rs/canvas": "^1.0.11"
-  },
-  "devDependencies": {
+    "@napi-rs/canvas": "^1.0.11",
     "gifenc": "^1.0.3"
   }
 }

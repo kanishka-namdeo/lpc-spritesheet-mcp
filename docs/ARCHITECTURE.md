@@ -21,26 +21,33 @@ included. The layer above the engine has no upstream counterpart at all — see
 | `sources/canvas/palette-recolor.ts` (CPU path) | `src/engine/recolor.js` (recolorImageCPU: index-paired palettes, ±1 tolerance, skip alpha 0; WebGL path intentionally not ported) |
 | `sources/canvas/renderer.ts` (runRenderCharacter + custom areas) | `src/engine/sheet.js` (SpriteEngine.renderCharacter: drawCalls → z-sort → load → recolor → drawImage(0, yPos); custom blocks appended below SHEET_HEIGHT) |
 | `sources/canvas/draw-frames.ts` | `src/engine/sheet.js` (drawFramesToCustomAnimation, drawSingleAnimSpriteToCustomAnimation, drawFrameToFrame) |
-| `sources/canvas/renderer.ts:716 extractAnimationFromCanvas` | `src/engine/sheet.js:345 extractAnimation` (crops `row*num` rows at 64px, full 832 width) — backs `get_animation` |
-| `sources/state/zip.ts:149-154` (custom-block slice at the running `y` below SHEET_HEIGHT) | `src/engine/sheet.js:362 extractCustomAnimation` (crop rect comes from `layout.custom`, so it also handles 128/192px blocks) — backs `get_animation` for custom names |
-| `sources/canvas/preview-animation.ts` | `src/engine/sheet.js:381 extractPreviewStrip` (one direction's playback cycle laid out horizontally) — backs `get_preview` and the showcase |
-| `sources/utils/zip-helpers.ts:363 extractFramesFromAnimation` | `src/engine/sheet.js:408 extractFrame` (single frame) — backs `export_character mode:"frames"` and the showcase script |
+| `sources/canvas/renderer.ts:716 extractAnimationFromCanvas` | `src/engine/sheet.js:390 extractAnimation` (crops `row*num` rows at 64px, full 832 width) — backs `get_animation` |
+| `sources/state/zip.ts:149-154` (custom-block slice at the running `y` below SHEET_HEIGHT) | `src/engine/sheet.js:407 extractCustomAnimation` (crop rect comes from `layout.custom`, so it also handles 128/192px blocks) — backs `get_animation` for custom names |
+| `sources/canvas/preview-animation.ts` | `src/engine/sheet.js:453 extractPreviewStrip` (one direction's playback cycle laid out horizontally) — backs `get_preview` (the PNG strip and the GIF frames alike) and the showcase |
+| `sources/utils/zip-helpers.ts:363 extractFramesFromAnimation` | `src/engine/sheet.js:480 extractFrame` (single frame) — backs `export_character mode:"frames"`, the batch contact grid and the showcase script |
 | `sources/utils/zip-helpers.ts` custom-block frame slice | `src/engine/sheet.js extractCustomFrame` (cell rect from `layout.custom`, so 128/192px blocks crop correctly) — backs `export_character mode:"frames"` |
-| `sources/state/zip.ts:70-198` split-by-animation, `:250` split-by-item, `:647-690` export-individual-frames (all four ZIP modes) | `src/export.js` (directory tree, not a ZIP) — backs `export_character` |
+| `sources/state/zip.ts:70-198` split-by-animation, `:250` split-by-item, `:647-690` export-individual-frames (all four ZIP modes) | `src/export.js` (directory tree, not a ZIP) + `src/atlas-formats.js` (five atlas dialects) — backs `export_character`; upstream ships no importer metadata at all, so every atlas dialect is a local addition over the same crops |
 | `sources/utils/fileName.ts` (zPos-prefixed names) | `src/export.js` uses `<animation>_<direction>_<n>` keys instead; the zPos-prefixed per-item mode is not ported |
 | `sources/utils/credits.ts` | `src/engine/credits.js` (getAllCredits, creditsToCsv, creditsToTxt) |
 | `sources/state/state.ts` selectDefaults | `src/engine/selection.js` (defaults: body + heads_human_male + face_neutral, all "light") |
 | `sources/state/json.ts:15-29,144-156` (v2 export with `layers[]` + `credits[]` + flags) | `src/spec.js:buildCharacterSpec` — `layers[]` is assembled from the draw calls `renderCharacter` reports, so the document cannot disagree with the PNG it describes |
 | `sources/state/json.ts:174-232` (v1 import) + `sources/state/hash.ts` (URL state) | `src/spec.js:readSavedCharacter` — **bounded port**: `sex`, `type_name=Name[_variant][_recolor]` and `_none` clearing, resolved through `selection.js:resolveItem`. Upstream's alias/wildcard tables are not reproduced; a name this pack cannot resolve becomes a `warning`, never a failed render |
-| — **NONE** | `src/index.js` (shebang entry; bootstrap + the nine-tool MCP surface + response envelope). Upstream has no server: its UI state is the caller. |
+| `sources/state/hash.ts:181-249` `getHashParamsforSelections` + `:116-125` `createHashStringFromParams` (the shareable-URL *encoder*) | `src/spec.js` `toStateHash` / `generatorUrl` — the encoder half of the v1 state hash: name-based values (hash.ts:235), `sex=` first (hash.ts:189), variant/recolor tails (hash.ts:237-242), colors folded into those tails, `eyes=` keyed by the recolor slot's type_name and named by its label (hash.ts:231). Every render payload now carries the resulting web-app URL |
+| — **NONE** | `src/index.js` (shebang entry; bootstrap + the thirteen-tool MCP surface, 3 prompts, 3 resources + response envelope). Upstream has no server: its UI state is the caller. |
 | — **NONE** | `src/character.js` (`renderAndSave` request pipeline, `resolveOutputPath`, file writes). Upstream's equivalents are browser download helpers (`sources/models/download.ts`), which this port replaces with direct `fs` writes. |
 | — **NONE** | `src/assets-dir.js` (asset-pack discovery). Upstream *is* the checkout, so the path is a build-time fact with no lookup logic. |
-| — **NONE** | `src/engine/sheet.js:305 describeLayout`. Upstream keeps the row mapping in module-level state and in the `tools/layout/*.json` files; nothing returns it as data. |
+| — **NONE** | `src/presets.js` — 18 curated archetypes. Upstream starts every session from the same defaults; it has no named-character concept. |
+| — **NONE** | `src/random.js` — the seeded roller. Upstream has no randomize button anywhere in its UI. |
+| — **NONE** | `src/ai.js` — the opt-in AI designer. Upstream has no AI; the web app's user is the designer. |
+| — **NONE** | `src/engine/gif.js` — animated-GIF encoding for previews. Upstream animates a `<canvas>` in the browser and never encodes a GIF. |
+| — **NONE** | `generate_batch` (in `src/index.js`) — N seeded characters, per-character directories, contact grid, rolled-up credits. Upstream exports one character at a time. |
+| — **NONE** | `src/engine/sheet.js:340 describeLayout`. Upstream keeps the row mapping in module-level state and in the `tools/layout/*.json` files; nothing returns it as data. |
 
 ## Local inventions
 
 No upstream file corresponds to these. They exist because the port needs facts the web app gets
-from UI state or from a layout file at click time.
+from UI state or from a layout file at click time — or they ship capability the web app never
+had (random rolls, GIF previews, engine atlases, AI design).
 
 - `src/index.js`, `src/character.js`, `src/assets-dir.js` — the MCP layer, the request pipeline,
   and pack discovery. `src/assets-dir.js` is the single shared implementation of the discovery
@@ -64,12 +71,55 @@ from UI state or from a layout file at click time.
 - `src/export.js` — the directory-bundle writer. Upstream ships the same content as four ZIP modes;
   a ZIP would add a dependency for a client that shares this filesystem, so the bundle is a tree plus
   `manifest.json`. Nothing in `src/engine/` writes files; the bundle writer is the caller.
-- **TexturePacker JSON Hash is a dialect upstream does not have.** Chosen because it is the format
-  Phaser and most importers read. `rotated:false` and `trimmed:false` are true statements about the
-  engine's fixed grid. `anchor {0.5,0.5}` is not: the LPC grid carries no per-frame hot spot, so the
-  atlas states a cell-centred pivot and `meta.pivotNote` says it is a local default. Frame durations
-  are deliberately absent for the same reason — the pack ships no timing data, and inventing fps in a
-  machine-readable file is how consumers end up trusting a number nobody measured.
+- **The atlas dialects are inventions upstream does not have.** Upstream ships PNGs and ZIPs, no
+  importer metadata. `src/atlas-formats.js` serializes one shared frame model five ways —
+  TexturePacker JSON Hash (the default, what Phaser and most importers read), Aseprite data JSON,
+  Godot 4 `.tres` SpriteFrames, libGDX `.atlas` text, Unity `.png.meta` — and each emitter's doc
+  comment cites the format source it was verified against (Aseprite CLI docs; Godot's own
+  demo-project files + docs + the LPCAnimatedSprite2D plugin; libGDX `TextureAtlas.java`; Unity's
+  ScriptReference cross-checked with a working emitter). `rotated:false` and `trimmed:false` are
+  true statements about the engine's fixed grid. The LPC grid carries no per-frame hot spot, so
+  the TexturePacker atlas states a cell-centred pivot and `meta.pivotNote` says it is a local
+  default, while the Unity slices use feet pivots (`alignment:9`, `pivot {0.5,0}`). Every atlas
+  plus the manifest carries an `animations` map — cycle-correct playback sequences straight from
+  `ANIMATION_CONFIGS` cycles — so a consumer never re-derives the upstream playback order (walk
+  plays 2–9, idle holds 0,0,1, sit/emote hold each frame five steps). Timing is the one field with
+  no pack truth: the TexturePacker map omits durations entirely, while the Aseprite and Godot
+  dialects write their formats' required timing fields (100 ms frames; 10 fps clips) to match the
+  web app's default tick.
+- `src/presets.js` — 18 curated, render-verified archetypes (villager … barbarian), expressed in
+  tool-input form; the test suite renders each one against the pinned pack. The render tools
+  accept `preset`, and `buildSelections` layers preset → saved-character document → explicit
+  `selections`/`colors` in that order.
+- `src/random.js` — the seeded random generator. `cyrb128` → `mulberry32` is pure 32-bit integer
+  math, so a seed names exactly one character forever. Gear profiles (`bare`/`civilian`/
+  `soldier`/`fancy`) tune how armed and fancy a roll is; `complete_only` keeps always-visible
+  groups to items that paint both walk and idle, relaxing with a note when the pack has no
+  complete item instead of shipping an empty group. `randomCharacters` derives per-character
+  seeds (`<seed>:<i>`), which is what makes a `generate_batch` village reproducible.
+- `src/engine/gif.js` — `encodeAnimatedGif`, the animated-preview encoder (gifenc moved from
+  devDependencies to dependencies for it). gifenc's `rgba4444` + `oneBitAlpha` quantization
+  collapses every transparent pixel onto one `[0,0,0,0]` palette entry, which each frame's
+  graphic-control extension then flags; the NETSCAPE2.0 extension rides frame one with repeat 0
+  (loop forever). The encoder is byte-deterministic by construction.
+- `src/ai.js` — the opt-in AI designer behind `design_character`. The module never reads
+  `process.env` and performs network I/O only inside `chatCompletion` (injectable `fetchImpl`,
+  abort-based timeout, one retry without `response_format` on a 400 that names it). The catalog
+  digest (byte-budgeted, ~7.5k chars) grounds the model in real itemIds and color names;
+  `parseCharacterSpec` extracts balanced-brace JSON from prose replies; `designCharacter`
+  supports one `repair` round that feeds a failed proposal plus the valid itemIds back to the
+  model.
+- The three MCP prompts (`design-a-character`, `populate-a-village`, `export-for-my-engine`) and
+  three resources (`lpc://sheet-layout`, `lpc://licensing`, `lpc://presets`) — scripted workflows
+  and reference material. Server capabilities grew from `{tools}` to `{tools, prompts,
+  resources}`.
+- `generatorUrl` on every render payload — `GENERATOR_APP_URL` + the state hash, so a character
+  made here re-opens in the live web app for further tweaking. The encoder is the mapped
+  `hash.ts` port above; linking every result back to the app is the local part.
+- `generate_batch` — the NPC village: N seeded characters each in their own directory
+  (`NN/sheet.png`, `NN/preview.png`, `NN/character-credits.*`), plus `index.png` (a contact grid
+  of every character's walk-down frame), one batch `manifest.json`, and a rolled-up
+  `batch-credits.csv/.txt`.
 - `src/validate.js` — the layout audit. Upstream has no equivalent; its maintainer asked for one
   (issue #588, after a shipped strip disagreed with its own definition). `warn` is used for the
   documented upstream asset-gap path, `fail` only where this port's own tables or the pack contradict
@@ -79,17 +129,19 @@ from UI state or from a layout file at click time.
   non-git pack and never throws.
 - `list_items`' 12,000-byte response budget, `fields` selection and `bytes`/`truncated`/`nextOffset`
   keys. Upstream is a tree widget with virtual scrolling; a text protocol pays tokens per call.
-- Tool `title`s, the four annotations, `outputSchema` + `structuredContent` on the six data tools, and
-  the size-gated `type:"image"` block on `get_preview`. None of it exists upstream; it is what the MCP
-  spec asks a server to say about itself.
+- Tool `title`s, the four annotations, `outputSchema` + `structuredContent` on the eight data tools,
+  and the size-gated inline `type:"image"` block on `get_preview`, `random_character` and
+  `design_character` previews (PNG or GIF bytes, annotated `audience:["user"]`). None of it exists
+  upstream; it is what the MCP spec asks a server to say about itself.
 - `ANIMATION_CONFIGS` reports 17 keys, `customAnimations` 14 blocks, and the universal sheet has 15
   row blocks. All three counts are right and mean different things; `validate_sheet layout` and
   `list_animations` are how a caller tells them apart.
 
 ## Tool surface → engine entry
 
-The boundary is always `src/character.js`; `src/engine/` never sees a tool name, an argument name,
-a payload shape, or the filesystem.
+Render requests enter through `src/character.js` (`generate_batch` drives the engine directly —
+it writes its own tree); `src/engine/` never sees a tool name, an argument name, a payload shape,
+or the filesystem.
 
 | Entry | Engine surface it reads |
 |---|---|
@@ -97,9 +149,13 @@ a payload shape, or the filesystem.
 | `list_animations` | `ANIMATION_CONFIGS` + `customAnimations` + `Catalog.customAnimationProviders()` for `usedBy`/`available` |
 | `generate_spritesheet` | `renderCharacter` → whole canvas + `describeLayout` output |
 | `get_animation` | `renderCharacter` + `extractAnimation` (standard) or `extractCustomAnimation` (custom) |
-| `get_preview` | `renderCharacter` + `extractPreviewStrip`, then nearest-neighbour upscale by `scale` 1–8 in `index.js` |
+| `get_preview` | `renderCharacter` + `extractPreviewStrip`, then nearest-neighbour upscale by `scale` 1–8 in `index.js`; `format:"gif"` additionally cuts the scaled strip into per-frame canvases and encodes them with `engine/gif.js` `encodeAnimatedGif` (uniform `fps` tick — the cycle is the timing table) |
 | `export_character` | `renderCharacter` + `extractAnimation` / `extractCustomAnimation` (mode `animation`) or `extractFrame` / `extractCustomFrame` (mode `frames`), with rects from `describeLayout`; writes via `src/export.js` |
 | `validate_sheet` | tables + `Catalog` (`layout`, `catalog`) or an unsaved `renderCharacter` (`character`) — it never writes |
+| `list_presets` | `src/presets.js` only — no engine involvement |
+| `random_character` | `randomCharacter` (`src/random.js`) reads `Catalog` only; the default inline preview rides `renderAndSave` → `renderCharacter` + `extractPreviewStrip` |
+| `generate_batch` | `randomCharacter` per character, then direct `renderCharacter` / `extractPreviewStrip` / `extractFrame` calls (bypasses the `character.js` save path — it writes its own tree) |
+| `design_character` | `src/ai.js` (`buildCatalogDigest` → `designCharacter` → `parseCharacterSpec`, opt-in via `aiConfigFromEnv`), the proposal validated through `normalizeSelections` with one `repair` retry; the preview is `renderCharacter` + `extractPreviewStrip` |
 | `scripts/make-showcase.mjs`, `scripts/make-golden.mjs` | `renderCharacter` + crops directly, bypassing MCP |
 | `test/run-tests.mjs` | the same engine methods in-process |
 
@@ -118,17 +174,22 @@ contexts that do not render mermaid, notably npm.
 %%{init: {"theme": "neutral"}}%%
 flowchart LR
   accTitle: Module dependency graph of the shipped runtime
-  accDescr: Solid arrows are real ESM import edges running from the server entry through the shared request pipeline into the engine modules and the canvas binding. One dashed arrow marks the SpriteEngine holding a Catalog instance, which is a runtime reference rather than an import.
+  accDescr: Solid arrows are real ESM import edges running from the server entry through the shared request pipeline, the preset, random and AI conveniences and the atlas emitters into the engine modules and the canvas and GIF bindings. One dashed arrow marks the SpriteEngine holding a Catalog instance, which is a runtime reference rather than an import.
 
   SDK["@modelcontextprotocol/sdk"]
   CANVAS["@napi-rs/canvas"]
+  GIFENC["gifenc"]
 
-  INDEX["src/index.js<br/>bootstrap + 9 tools"]
+  INDEX["src/index.js<br/>bootstrap + 13 tools<br/>+ prompts + resources"]
   CHAR["src/character.js<br/>request pipeline"]
   ADIR["src/assets-dir.js<br/>pack discovery + revision"]
   EXPORT["src/export.js<br/>bundle writer"]
-  SPEC["src/spec.js<br/>saved-character read/write"]
+  SPEC["src/spec.js<br/>saved-character read/write<br/>+ state-hash encode"]
   VALID["src/validate.js<br/>layout audit"]
+  PRESETS["src/presets.js<br/>preset library (data only)"]
+  RANDOM["src/random.js<br/>seeded rolls"]
+  AI["src/ai.js<br/>opt-in AI designer"]
+  ATLAS["src/atlas-formats.js<br/>atlas dialect emitters"]
 
   subgraph ENGINE["src/engine/"]
     CAT["catalog.js"]
@@ -138,33 +199,47 @@ flowchart LR
     REC["recolor.js"]
     CRED["credits.js"]
     CUST["custom-animations.js"]
+    GIF["gif.js"]
   end
 
   INDEX --> ADIR
   INDEX --> CHAR
   INDEX --> EXPORT
   INDEX --> VALID
+  INDEX --> PRESETS
+  INDEX --> RANDOM
+  INDEX --> AI
+  INDEX --> SPEC
+  INDEX --> SEL
+  INDEX --> CRED
   INDEX --> CAT
   INDEX --> SHEET
   INDEX --> CONST
   INDEX --> CUST
+  INDEX --> GIF
   INDEX --> SDK
   INDEX --> CANVAS
   CHAR --> SEL
   CHAR --> CRED
   CHAR --> SPEC
   CHAR --> ADIR
+  CHAR --> PRESETS
   EXPORT --> CHAR
   EXPORT --> SPEC
   EXPORT --> CRED
   EXPORT --> CONST
   EXPORT --> ADIR
+  EXPORT --> ATLAS
   VALID --> CONST
   VALID --> CUST
   VALID --> ADIR
   SPEC --> SEL
   SPEC --> REC
   SPEC --> CONST
+  RANDOM --> CONST
+  RANDOM --> REC
+  AI --> CONST
+  ATLAS --> CONST
   SHEET --> CONST
   SHEET --> CUST
   SHEET --> REC
@@ -172,15 +247,20 @@ flowchart LR
   SEL --> CONST
   SEL --> REC
   CAT --> CONST
+  GIF --> GIFENC
   SHEET -.->|holds instance, no import| CAT
 ```
 
-`constants.js`, `recolor.js`, `credits.js` and `custom-animations.js` are engine leaves: they import no
-local module. `assets-dir.js` is the only module that touches the outside world besides `fs` — it
-shells out to `git rev-parse` for the pack revision, caches the answer per directory, and returns null
-instead of failing when the pack is not a checkout. `export.js` and `validate.js` sit on the
-MCP-facing side of the boundary and are the only modules that write files or read tables for the
-purpose of judging them; `src/engine/` still writes nothing.
+`constants.js`, `recolor.js`, `credits.js`, `custom-animations.js` and `gif.js` are engine leaves:
+`gif.js` imports only the external `gifenc`, the other four import no local module at all. On the
+MCP-facing side `presets.js` imports nothing — it is pure data — and `atlas-formats.js` imports
+only `constants.js` (plus `node:crypto` for Unity's deterministic guid). `assets-dir.js` shells
+out to `git rev-parse` for the pack revision, caches the answer per directory, and returns null
+instead of failing when the pack is not a checkout; it and `ai.js` are the only modules that touch
+the outside world beyond `fs`, and `ai.js` only when the operator opts in. `validate.js` reads
+tables for the purpose of judging them; the file writers are `character.js` (single-file
+outputs), `export.js` (bundles) and the `generate_batch` handler in `index.js` (batch trees);
+`src/engine/` still writes nothing.
 
 ### One `generate_spritesheet` call
 
@@ -200,7 +280,7 @@ sequenceDiagram
 
   C->>I: tools/call generate_spritesheet(args)
   I->>P: renderAndSave(engine, args, extract)
-  P->>P: buildSelections (optional character JSON v2 or v1 state hash, bodyType default male)
+  P->>P: buildSelections (optional preset, then character JSON v2 or v1 state hash, then explicit selections/colors; bodyType default male)
   P->>S: normalizeSelections(catalog, bodyType, merged selections, colors)
   S-->>P: map keyed by type_name
   P->>E: renderCharacter(bodyType, selections, matchBodyColorEnabled)
@@ -217,8 +297,8 @@ sequenceDiagram
   P->>P: extract (crop or pass through)
   P->>F: resolveOutputPath (mkdirs parents, relative against server cwd)
   P->>F: write PNG, plus credits CSV/TXT and optional full character JSON
-  P-->>I: payload (output, bodyType, pack.revision, image, layout, warnings, selections, credits)
-  I-->>C: jsonResult, payload as pretty-printed JSON text (+ image block for get_preview)
+  P-->>I: payload (output, format, bodyType, generatorUrl, pack.revision, image, layout, warnings, selections, credits)
+  I-->>C: jsonResult, payload as pretty-printed JSON text (+ inline image block for get_preview / random_character / design_character)
   Note over I,C: any throw becomes a payload with error plus hint and isError true, never a rejected handler
 ```
 
@@ -228,7 +308,7 @@ sequenceDiagram
 %%{init: {"theme": "neutral"}}%%
 flowchart LR
   accTitle: Asset pack discovery and rendered artifacts
-  accDescr: Three candidate locations are ranked by assets-dir and the first one holding both sheet definitions and spritesheets wins, the engine reads that pack read-only, and each render writes a PNG plus attribution files beside it.
+  accDescr: Three candidate locations are ranked by assets-dir and the first one holding both sheet definitions and spritesheets wins, the engine reads that pack read-only, and each render writes a PNG (or GIF preview) plus attribution files beside it.
 
   subgraph CAND["Discovery order (first valid wins)"]
     E1["1. LPC_ASSETS_DIR"]
@@ -245,15 +325,17 @@ flowchart LR
   EXT -->|Catalog reads definitions| ENG["engine render<br/>sheet.js + recolor.js"]
   EXT -->|loadSprite reads layer PNGs| ENG
   ENG -->|character.js writes beside the PNG| OUTD
-  OUTD --> PNG["name.png"]
+  OUTD --> PNG["name.png — or name.gif for get_preview<br/>format:gif (the extension always follows the format)"]
   OUTD --> CRT["name-credits.csv, name-credits.txt<br/>(include_credits defaults on)"]
   OUTD --> CHJ["name-character.json (opt-in)"]
-  OUTD --> BUNDLE["or a bundle dir: sheet.png, sheet.atlas.texturepacker.json,<br/>manifest.json, standard/*.png or standard/*/*.png,<br/>custom/*/*.png, sheet-credits.csv/.txt"]
+  OUTD --> BUNDLE["or a bundle dir: sheet.png + one atlas file —<br/>sheet.atlas.texturepacker.json / sheet.aseprite.json /<br/>sheet-spriteframes.tres / sheet.atlas / sheet.png.meta —<br/>plus manifest.json, standard/*.png or standard/*/*.png,<br/>custom/*/*.png, sheet-credits.csv/.txt"]
+  OUTD --> BATCH["or a batch dir (generate_batch): NN/sheet.png,<br/>NN/preview.png, NN/character-credits.csv/.txt,<br/>index.png, manifest.json, batch-credits.csv/.txt"]
 ```
 
 The engine never writes files and the pack is never written to at all. `src/character.js` writes the
-single-file outputs beside the requested path; `src/export.js` is the only other writer and it stays
-inside the `output_dir` it was given.
+single-file outputs beside the requested path; `src/export.js` (bundles) and the `generate_batch`
+handler in `src/index.js` (batch trees) are the only other writers, and each stays inside the
+`output_dir` it was given.
 
 ## Invariants worth remembering
 
@@ -301,3 +383,27 @@ inside the `output_dir` it was given.
   output or sidecar arguments at all. A caller that passes one gets an unknown-argument warning.
 - `renderCharacter`'s `layers` inventory is derived from the draw calls that painted, so a character
   document can never claim support for a row block the sheet left empty.
+- The atlas emitters are pure functions of their arguments — no filesystem, clock or random — and
+  two calls with the same frame list produce byte-identical output (`test/atlas-formats-test.mjs`
+  re-emits and compares). Unity's `guid` is SHA-256 of the character name + sheet size rather than
+  a random UUID for the same reason: a regenerated sheet keeps its identity.
+- The random generator is deterministic by contract: no `Math.random`, no `Date`, no environment
+  input anywhere in `src/random.js`. Its pools draw from catalog maps built by sorted directory
+  walks, so iteration order — and therefore the character a seed produces — is stable per pack
+  revision (a pack bump can change the pools, so `pack.revision` in the payload is part of a
+  random character's identity).
+- Offline by default, AI by opt-in. All network I/O lives in `src/ai.js` `chatCompletion`
+  (injectable `fetchImpl`, abort-based timeout, one retry without `response_format` on a 400 that
+  names it); `src/index.js` reads the env once through `aiConfigFromEnv`, and without
+  `LPC_AI_API_KEY` the `design_character` tool returns a setup error and the server never opens a
+  socket.
+- A GIF preview's timing table is the cycle: `get_preview` `format:"gif"` gives every frame the
+  same tick (`fps`, default 10 = the web app's default), and that IS correct playback, because the
+  LPC cycle already encodes per-frame holds (idle 0,0,1; sit ×5). Per-frame durations would
+  re-encode information the cycle already carries.
+- `toStateHash` is upstream parity, not a lookalike: it ports `hash.ts:181-249`
+  (`getHashParamsforSelections`) faithfully — name-based values, `sex=` first, raw variant strings
+  percent-encoded, `eyes=` keyed by the recolor slot's type_name and named by its label. Parity
+  was verified differentially against a literal transcription of the upstream value construction
+  across every item × variant × recolor selection shape in the pinned pack (53,604 shapes, 0
+  mismatches), and `test/url-test.mjs` byte-pins the emitted format.

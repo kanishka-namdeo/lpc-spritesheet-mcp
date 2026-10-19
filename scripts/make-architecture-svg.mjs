@@ -64,27 +64,27 @@ const NODES = [
   ]),
   n("index", 266, 76, 306, 156, "group", [
     t("src/index.js", 12.5, "bold"),
-    t("server bootstrap · stdio JSON-RPC · 9 tools", 8.8, "normal", C.dim),
+    t("stdio JSON-RPC · 13 tools · 3 prompts · 3 resources", 8.8, "normal", C.dim),
   ], { children: ["tools_discovery", "tools_render", "tools_bundle"] }),
   n("tools_discovery", 280, 114, 278, 34, "box", [
     t("discovery: list_categories · list_items", 8.4, "bold"),
-    t("list_palettes · list_animations", 8.4, "normal", C.dim),
+    t("list_palettes · list_animations · list_presets", 8.4, "normal", C.dim),
   ]),
   n("tools_render", 280, 152, 278, 34, "render", [
-    t("render: generate_spritesheet", 8.4, "bold"),
-    t("get_animation · get_preview", 8.4, "normal", C.dim),
+    t("render: generate_spritesheet · random_character", 8.4, "bold"),
+    t("get_animation · get_preview (PNG/GIF)", 8.4, "normal", C.dim),
   ]),
   n("tools_bundle", 280, 190, 278, 34, "box", [
-    t("export · audit", 8.4, "bold"),
+    t("export · batch · audit · AI design", 8.4, "bold"),
     t("export_character · validate_sheet", 8.4, "normal", C.dim),
   ]),
   n("character", 616, 80, 186, 122, "box", [
     t("src/character.js", 11.5, "bold"),
     t("renderAndSave", 8.9, "bold", C.dim),
     t("normalize · render", 8.8, "normal", C.dim),
-    t("extract · save", 8.8, "normal", C.dim),
-    t("resolveOutputPath", 8.8, "normal", C.dim),
-    t("fs.writeFileSync", 8.8, "normal", C.dim),
+    t("preset · extract · save", 8.8, "normal", C.dim),
+    t("PNG or GIF output", 8.8, "normal", C.dim),
+    t("generatorUrl echo", 8.8, "normal", C.dim),
   ]),
   n("legend", 846, 80, 122, 122, "plain", [
     t("Legend", 9.5, "bold"),
@@ -117,7 +117,7 @@ const NODES = [
   n("engine", 256, 240, 712, 250, "engine", [
     t("src/engine/ — import edges run downward · no MCP shapes, no filesystem", 8.8, "bold"),
   ], {
-    children: ["catalog", "selection", "sheet", "credits", "constants", "recolor", "custanim"],
+    children: ["catalog", "selection", "sheet", "credits", "constants", "recolor", "custanim", "gif"],
   }),
   n("catalog", 270, 276, 158, 54, "box", [
     t("catalog.js", 11, "bold"),
@@ -150,6 +150,11 @@ const NODES = [
   n("custanim", 618, 398, 158, 54, "box", [
     t("custom-animations.js", 9.4, "bold"),
     t("64 / 128 / 192 px blocks", 8.6, "normal", C.dim),
+  ]),
+  n("gif", 792, 398, 158, 54, "box", [
+    t("gif.js", 11, "bold"),
+    t("looping GIF encode", 8.6, "normal", C.dim),
+    t("alpha-preserving", 8.6, "normal", C.dim),
   ]),
 
   // --- band 3: backend + products ---------------------------------------
@@ -523,7 +528,7 @@ function render() {
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS.width}" height="${CANVAS.height}" viewBox="0 0 ${CANVAS.width} ${CANVAS.height}" font-family="${FONT}" role="img" aria-labelledby="arch-title arch-desc">`,
     `  <title id="arch-title">lpc-spritesheet-mcp system architecture</title>`,
-    `  <desc id="arch-desc">An MCP client calls nine tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js; export_character fans the same render into a bundle directory and validate_sheet audits the tables without writing anything. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>`,
+    `  <desc id="arch-desc">An MCP client calls thirteen tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline (which resolves presets, saved characters and explicit selections) into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js; gif.js encodes looping transparent previews, and results echo the upstream generator URL. random_character and generate_batch roll seeded characters (presets.js · random.js), design_character is the opt-in AI path (ai.js, active only with LPC_AI_API_KEY), export_character fans the same render into a bundle directory with an atlas in five dialects (atlas-formats.js) and validate_sheet audits the tables without writing anything. Three prompts and three resources ride the same transport. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>`,
     `  <defs>`,
     `    <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">`,
     `      <path d="M0 0 L8 3.5 L0 7 z" fill="${C.arrow}"/>`,

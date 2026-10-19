@@ -227,3 +227,154 @@ function pickTail(item, tail) {
 function isPlain(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
+
+// ---------------------------------------------------------------------------
+// Upstream shareable-URL encoding — the writer half of `fromHash` above.
+//
+// Reference: sources/state/hash.ts in the Universal-LPC-Spritesheet-Character-Generator
+// web app. `getHashParamsforSelections` (hash.ts:181–249) builds the params:
+//   - `sex=<bodyType>` comes first, spelled "sex" for old-URL compatibility (hash.ts:189);
+//   - key  = subMeta?.type_name ?? meta.type_name (hash.ts:231): a selection group is the
+//     item's type_name, and a color sub-selection (e.g. the head's eye-color slot) becomes
+//     its OWN param keyed by the recolor slot's type_name;
+//   - name part = (subMeta?.label ?? meta.name) with spaces→underscores (hash.ts:235)
+//     — the item DISPLAY NAME, never the itemId;
+//   - value = namePart + "_" + variant + "|" + recolor, with "_" only when a tail exists
+//     and "|" only when both exist (hash.ts:237–242). Variant/recolor strings are written
+//     raw: a variant like "dark brown" encodes as `dark%20brown`, which upstream's decoder
+//     accepts alongside the old underscore spelling (issue #296);
+//   - `createHashStringFromParams` (hash.ts:116–125) joins `encodeURIComponent(key)=
+//     encodeURIComponent(value)` with "&" (the browser adds the leading "#").
+//
+// EYES FINDING: upstream has a dedicated `eyes=` param. Head and expression items carry a
+// second recolor slot `{type_name: "eyes", label: "Eye Color"}`, and a selection of that
+// slot encodes as `eyes=Eye_Color_<color>` — the slot LABEL is the name part (upstream's
+// own test tests/state/hash_spec.js:160–195 shows label "Eyes" → `eyes=Eyes_blue`).
+// Upstream decodes it with a sub-item fallback (hash.ts:354–411): params that resolve to
+// no item are matched against the recolor slots of the already-selected items, so
+// `eyes=Eye_Color_green` reopens as the eye color "green" on the selected head. This
+// port's `fromHash` has no such fallback, so `eyes=` (and other slot params such as
+// `handle=` on axes) decode to a warning and are dropped — a documented limit of the HASH
+// path here. The URL itself opens correctly in the real web app (the product goal), and
+// the v2 JSON path carries sub-selections losslessly.
+//
+// Deliberate divergences from upstream:
+//   - Groups are emitted sorted by param name. Upstream has no canonical order (it
+//     serializes selection-map insertion order); both decoders are order-independent, so
+//     a sorted canonical string is chosen for stability.
+//   - Upstream's alias pass (hash.ts:196–222) only fires for items without type_name —
+//     none exist in this pack — so it is not ported.
+//   - Tails are validated against the catalog (a variant must be one of the item's
+//     variants, matched exactly or via upstream's space/underscore-insensitive comparison;
+//     a color must pass `fixMissingRecolor`) and dropped when they do not verify, so a
+//     generated URL never re-opens with decoder warnings about its own values. Upstream
+//     writes tails unvalidated; valid selections encode byte-identically either way.
+// ---------------------------------------------------------------------------
+
+/** Live upstream web app (its README "Try it here" link) — the target these URLs open in. */
+export const GENERATOR_APP_URL =
+  "https://liberatedpixelcup.github.io/Universal-LPC-Spritesheet-Character-Generator/";
+
+/**
+ * Mirrors upstream `normalizeVariantForHashMatch` (resolve-hash-param.ts:272–280) minus
+ * the URI-decode step (our input is a selection string, not URL text): "dark brown",
+ * "dark_brown" and "Dark_Brown" all compare equal, so a caller's variant spelling still
+ * encodes as the item's canonical variant.
+ */
+function normalizeVariantForMatch(value) {
+  return String(value).replaceAll(" ", "_").toLowerCase();
+}
+
+/**
+ * Serialize to the upstream state-hash format: "#sex=female&hair=Bangs_red&..." using
+ * upstream's exact encoding (names, not itemIds; spaces→underscores; variant/color tails).
+ *
+ * `character.selections` is serialized exactly as given — pass `normalizeSelections()`
+ * output or a v2 document's `selections` for a full character. `character.colors`
+ * (group → color name) is folded into each selection's recolor tail first, because the
+ * hash format has no separate color section; the special "eyes" group folds onto the
+ * eyes sub-selection the same way.
+ *
+ * Never throws on odd input: entries whose itemId does not resolve (stale items, "none"
+ * leftovers, junk shapes) are skipped — they were warnings when the character was read.
+ *
+ * @param {import('./engine/catalog.js').Catalog} catalog
+ * @param {{bodyType: string, selections: Record<string,{itemId,subId,variant,recolor}>, colors?: Record<string,string>}} character
+ * @returns {string} hash starting with "#"
+ */
+export function toStateHash(catalog, character) {
+  const c = character ?? {};
+  const selections = isPlain(c.selections) ? { ...c.selections } : {};
+
+  // Fold the color map into the selections (on the copy — the caller's object is never
+  // mutated), verifying each color the same way normalizeSelections does.
+  for (const [group, color] of Object.entries(isPlain(c.colors) ? c.colors : {})) {
+    const sel = selections[group];
+    if (!isPlain(sel) || typeof sel.itemId !== "string" || typeof color !== "string") continue;
+    const item = catalog.getItem(sel.itemId);
+    if (!item) continue;
+    const slot = sel.subId != null ? item.recolors[sel.subId] : item.recolors[0];
+    if (!slot) continue; // nothing recolorable to fold onto
+    const verified = fixMissingRecolor(catalog, item.itemId, color, slot.type_name ?? null);
+    if (verified) selections[group] = { ...sel, recolor: verified };
+    // An unofferable color is skipped, not emitted: the URL must not carry a value its
+    // own decoder would warn about.
+  }
+
+  /** @type {Record<string, string>} */
+  const params = {};
+  if (typeof c.bodyType === "string" && c.bodyType) params.sex = c.bodyType;
+
+  for (const group of Object.keys(selections).sort()) {
+    const sel = selections[group];
+    if (!isPlain(sel) || typeof sel.itemId !== "string") continue; // "none" strings / junk never encode
+    const item = catalog.getItem(sel.itemId);
+    if (!item || !item.typeName) continue; // stale itemId or unhashable group
+
+    // Color sub-selections (subId != null): keyed by the slot's type_name, named by the
+    // slot's label — exactly hash.ts:225–244.
+    const subMeta = sel.subId != null ? item.recolors[sel.subId] : undefined;
+    const key = subMeta?.type_name ?? item.typeName;
+    const namePart = (subMeta?.label ?? item.name).replaceAll(" ", "_");
+
+    const variantPart =
+      typeof sel.variant === "string" && sel.variant
+        ? item.variants.find(
+            (v) => v === sel.variant || normalizeVariantForMatch(v) === normalizeVariantForMatch(sel.variant),
+          ) ?? ""
+        : "";
+    let recolorPart = "";
+    if (typeof sel.recolor === "string" && sel.recolor) {
+      const slot = subMeta ?? item.recolors[0];
+      if (slot) {
+        recolorPart = fixMissingRecolor(catalog, item.itemId, sel.recolor, slot.type_name ?? null) ?? "";
+      }
+    }
+
+    params[key] =
+      namePart +
+      (variantPart || recolorPart ? "_" : "") +
+      variantPart +
+      (variantPart && recolorPart ? "|" : "") +
+      recolorPart;
+  }
+
+  return (
+    "#" +
+    Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join("&")
+  );
+}
+
+/**
+ * Full upstream web-app URL: `"<live app URL>#sex=..."` — open it in a browser to
+ * continue tweaking the exact character in the real generator.
+ *
+ * @param {import('./engine/catalog.js').Catalog} catalog
+ * @param {{bodyType: string, selections: Record<string,{itemId,subId,variant,recolor}>, colors?: Record<string,string>}} character
+ * @returns {string} absolute URL whose fragment is the state hash
+ */
+export function generatorUrl(catalog, character) {
+  return GENERATOR_APP_URL + toStateHash(catalog, character);
+}

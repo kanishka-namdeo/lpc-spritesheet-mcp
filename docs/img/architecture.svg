@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="716" viewBox="0 0 1000 716" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">lpc-spritesheet-mcp system architecture</title>
-  <desc id="arch-desc">An MCP client calls nine tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js; export_character fans the same render into a bundle directory and validate_sheet audits the tables without writing anything. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>
+  <desc id="arch-desc">An MCP client calls thirteen tools over stdio JSON-RPC. src/index.js sends discovery tools to the engine catalog and render tools through the shared src/character.js pipeline (which resolves presets, saved characters and explicit selections) into src/engine, which composites character layers onto @napi-rs/canvas using the row layout in constants.js; gif.js encodes looping transparent previews, and results echo the upstream generator URL. random_character and generate_batch roll seeded characters (presets.js · random.js), design_character is the opt-in AI path (ai.js, active only with LPC_AI_API_KEY), export_character fans the same render into a bundle directory with an atlas in five dialects (atlas-formats.js) and validate_sheet audits the tables without writing anything. Three prompts and three resources ride the same transport. src/assets-dir.js locates the external, read-only Universal LPC asset pack that supplies the definitions and sprite PNGs, and every render writes a spritesheet PNG plus credits files beside the output path.</desc>
   <defs>
     <marker id="arrowhead" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
       <path d="M0 0 L8 3.5 L0 7 z" fill="#4a5a70"/>
@@ -19,23 +19,23 @@
     <text x="127" y="158" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">tools/call · tools/list</text>
     <rect x="266" y="76" width="306" height="156" rx="10" fill="#e2e8f0" stroke="#95a3b6" stroke-width="1.2"/>
     <text x="419" y="94" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#161f2b">src/index.js</text>
-    <text x="419" y="108.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">server bootstrap · stdio JSON-RPC · 9 tools</text>
+    <text x="419" y="108.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">stdio JSON-RPC · 13 tools · 3 prompts · 3 resources</text>
     <rect x="280" y="114" width="278" height="34" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
     <text x="419" y="132" text-anchor="middle" font-size="8.4" font-weight="bold" fill="#161f2b">discovery: list_categories · list_items</text>
-    <text x="419" y="144.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">list_palettes · list_animations</text>
+    <text x="419" y="144.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">list_palettes · list_animations · list_presets</text>
     <rect x="280" y="152" width="278" height="34" rx="7" fill="#dce9f7" stroke="#33546f" stroke-width="1.2"/>
-    <text x="419" y="170" text-anchor="middle" font-size="8.4" font-weight="bold" fill="#161f2b">render: generate_spritesheet</text>
-    <text x="419" y="182.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">get_animation · get_preview</text>
+    <text x="419" y="170" text-anchor="middle" font-size="8.4" font-weight="bold" fill="#161f2b">render: generate_spritesheet · random_character</text>
+    <text x="419" y="182.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">get_animation · get_preview (PNG/GIF)</text>
     <rect x="280" y="190" width="278" height="34" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
-    <text x="419" y="208" text-anchor="middle" font-size="8.4" font-weight="bold" fill="#161f2b">export · audit</text>
+    <text x="419" y="208" text-anchor="middle" font-size="8.4" font-weight="bold" fill="#161f2b">export · batch · audit · AI design</text>
     <text x="419" y="220.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">export_character · validate_sheet</text>
     <rect x="616" y="80" width="186" height="122" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
     <text x="709" y="98" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#161f2b">src/character.js</text>
     <text x="709" y="112.5" text-anchor="middle" font-size="8.9" font-weight="bold" fill="#46566b">renderAndSave</text>
     <text x="709" y="125" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">normalize · render</text>
-    <text x="709" y="137.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">extract · save</text>
-    <text x="709" y="150" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">resolveOutputPath</text>
-    <text x="709" y="162.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">fs.writeFileSync</text>
+    <text x="709" y="137.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">preset · extract · save</text>
+    <text x="709" y="150" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">PNG or GIF output</text>
+    <text x="709" y="162.5" text-anchor="middle" font-size="8.8" font-weight="normal" fill="#46566b">generatorUrl echo</text>
     <rect x="846" y="80" width="122" height="122" rx="7" fill="#eef1f5" stroke="#b6c1cf" stroke-width="1.2"/>
     <text x="907" y="98" text-anchor="middle" font-size="9.5" font-weight="bold" fill="#161f2b">Legend</text>
     <text x="907" y="111.5" text-anchor="middle" font-size="8.2" font-weight="normal" fill="#46566b">solid = module</text>
@@ -84,6 +84,10 @@
     <rect x="618" y="398" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
     <text x="697" y="416" text-anchor="middle" font-size="9.4" font-weight="bold" fill="#161f2b">custom-animations.js</text>
     <text x="697" y="428.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">64 / 128 / 192 px blocks</text>
+    <rect x="792" y="398" width="158" height="54" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
+    <text x="871" y="416" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">gif.js</text>
+    <text x="871" y="430.5" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">looping GIF encode</text>
+    <text x="871" y="443" text-anchor="middle" font-size="8.6" font-weight="normal" fill="#46566b">alpha-preserving</text>
     <rect x="270" y="528" width="158" height="52" rx="7" fill="#ffffff" stroke="#77869a" stroke-width="1.2"/>
     <text x="349" y="546" text-anchor="middle" font-size="11" font-weight="bold" fill="#161f2b">@napi-rs/canvas</text>
     <text x="349" y="560.5" text-anchor="middle" font-size="8.4" font-weight="normal" fill="#46566b">the only pixel backend</text>

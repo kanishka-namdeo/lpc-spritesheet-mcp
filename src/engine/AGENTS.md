@@ -17,6 +17,7 @@ No browser, no Vite, no Mithril, no TypeScript build.
 | `sheet.js` | `SpriteEngine`: draw-call build, z-sort, load, recolor, composite; returns `{canvas, layout, warnings, layers}`; every crop (`extractAnimation`, `extractCustomAnimation`, `extractPreviewStrip`, `extractFrame`, `extractCustomFrame`) and `customAnimationNames()` |
 | `custom-animations.js` | Oversize / non-grid animation blocks (wheelchair, 128-192px weapons) and their layouts |
 | `credits.js` | Collect per-asset attribution and serialize it as CSV and TXT |
+| `gif.js` | `encodeAnimatedGif` + `gifFrameDelay`: looping GIF89a encoding with per-frame local palettes and one-bit alpha transparency (gifenc, `rgba4444`/`oneBitAlpha`). Deterministic — byte-identical output for identical input is a tested claim. Used by `get_preview format:"gif"`; no engine dependency on it |
 
 ## Local Contracts
 

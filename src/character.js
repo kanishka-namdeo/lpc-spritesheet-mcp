@@ -6,7 +6,8 @@ import path from "node:path";
 import { normalizeSelections, SelectionError } from "./engine/selection.js";
 import { getAllCredits, creditsToCsv, creditsToTxt } from "./engine/credits.js";
 import { packRevision } from "./assets-dir.js";
-import { buildCharacterSpec, readSavedCharacter } from "./spec.js";
+import { buildCharacterSpec, readSavedCharacter, generatorUrl } from "./spec.js";
+import { getPreset, presetNames } from "./presets.js";
 
 // Not the package directory: an installed package lives under node_modules/, which the next
 // `npm install` replaces and a root-owned global prefix does not let us write into.
@@ -18,13 +19,31 @@ export class CharacterRequestError extends Error {}
  * Normalize the character-defining args shared by generate_spritesheet /
  * get_animation / get_preview.
  *
- * A saved-character JSON (v2) provides the BASE selections; explicit
- * args.selections / args.colors always merge on top of it.
+ * A named preset (`args.preset`) or a saved-character JSON (v2) provides the BASE
+ * selections; explicit args.selections / args.colors always merge on top, in that
+ * order (explicit args win over the character document, which wins over the preset).
  */
 export function buildSelections(engine, args) {
   let bodyType = args.bodyType ?? null;
   let base = {};
+  let baseColors = {};
   let characterWarnings = [];
+
+  if (args.preset !== undefined) {
+    if (typeof args.preset !== "string") {
+      throw new CharacterRequestError("preset must be a preset name string (see list_presets).");
+    }
+    const preset = getPreset(args.preset);
+    if (!preset) {
+      throw new CharacterRequestError(
+        `Unknown preset "${args.preset}". Available: ${presetNames().join(", ")}.`,
+      );
+    }
+    base = { ...preset.selections };
+    baseColors = { ...preset.colors };
+    bodyType = bodyType ?? preset.bodyType;
+    characterWarnings.push(`Preset "${preset.name}" applied as the base character.`);
+  }
 
   if (args.character !== undefined) {
     let char = args.character;
@@ -53,7 +72,8 @@ export function buildSelections(engine, args) {
 
   bodyType = bodyType ?? "male";
   const selections = normalizeSelections(
-    engine.catalog, bodyType, { ...base, ...(args.selections ?? {}) }, args.colors ?? {},
+    engine.catalog, bodyType, { ...base, ...(args.selections ?? {}) },
+    { ...baseColors, ...(args.colors ?? {}) },
   );
   return { bodyType, selections, characterWarnings };
 }
@@ -74,10 +94,13 @@ export function describeSelections(selections) {
   );
 }
 
-export function resolveOutputPath(outputPath, defaultName) {
-  const p = outputPath
+export function resolveOutputPath(outputPath, defaultName, ext = ".png") {
+  let p = outputPath
     ? path.resolve(String(outputPath))
-    : path.join(DEFAULT_OUTPUT_DIR, `${defaultName}-${timestamp()}.png`);
+    : path.join(DEFAULT_OUTPUT_DIR, `${defaultName}-${timestamp()}${ext}`);
+  // An explicit path with the wrong extension would misname the bytes that land
+  // there, so the extension always follows the format being written.
+  if (path.extname(p) !== ext) p = p.slice(0, p.length - path.extname(p).length) + ext;
   fs.mkdirSync(path.dirname(p), { recursive: true });
   return p;
 }
@@ -107,14 +130,19 @@ export async function renderAndSave(engine, args, { defaultName, extract, preWar
 
   let result = extract({ canvas, layout });
   const suffix = result.suffix ?? "";
-  const pngPath = resolveOutputPath(args.output_path, `${defaultName}${suffix}`);
+  const isGif = Boolean(result.gif);
+  const outPath = resolveOutputPath(
+    args.output_path, `${defaultName}${suffix}`, isGif ? ".gif" : ".png",
+  );
 
-  const png = result.canvas.toBuffer("image/png");
-  fs.writeFileSync(pngPath, png);
+  const bytes = isGif ? result.gif : result.canvas.toBuffer("image/png");
+  fs.writeFileSync(outPath, bytes);
 
   const payload = {
-    output: pngPath,
+    output: outPath,
+    format: isGif ? "gif" : "png",
     bodyType,
+    generatorUrl: generatorUrl(engine.catalog, { bodyType, selections }),
     pack: { revision: packRevision(engine.catalog.assetsDir) },
     image: {
       width: result.canvas.width,
@@ -127,8 +155,8 @@ export async function renderAndSave(engine, args, { defaultName, extract, preWar
     selections: describeSelections(selections),
   };
 
-  const baseName = path.basename(pngPath, path.extname(pngPath));
-  const outDir = path.dirname(pngPath);
+  const baseName = path.basename(outPath, path.extname(outPath));
+  const outDir = path.dirname(outPath);
   const credits = getAllCredits(engine.catalog, selections, bodyType);
   if (args.include_credits !== false && credits.length > 0) {
     const csvPath = path.join(outDir, `${baseName}-credits.csv`);
@@ -158,7 +186,12 @@ export async function renderAndSave(engine, args, { defaultName, extract, preWar
   }
   // The crop the caller asked for, kept as bytes so the tool envelope can decide whether to also
   // send it inline. Never serialized into `payload` — that would double the text.
-  if (result.inline) payload.inlinePng = png;
+  if (result.inline) {
+    payload.inlineImage = {
+      bytes,
+      mimeType: isGif ? "image/gif" : "image/png",
+    };
+  }
   return payload;
 }
 

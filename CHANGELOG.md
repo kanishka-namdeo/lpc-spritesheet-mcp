@@ -5,6 +5,99 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-19
+
+The "see it walk" release: every feature here exists to close the gap between *asking* for a
+character and *seeing* one. The tool surface grows from nine to thirteen tools, and the server
+gains three MCP prompts and three MCP resources. Rendering itself is byte-identical to 1.3.0 —
+`npm run golden` passes unchanged against the same pinned pack revision.
+
+### Added (watch it move)
+
+- **Animated GIF previews.** `get_preview` accepts `format: "gif"` (+ `fps`, default 10) and
+  returns a looping, transparency-preserving GIF of one animation's playback cycle for one
+  direction — correct LPC playback order built in, because the cycle table (walk skips the
+  standing pose, idle holds 0,0,1, sit/emote hold each frame five steps) *is* the timing table:
+  one uniform tick per cycle entry is exact playback, not an approximation. Small GIFs come back
+  inline (`image/gif`, `annotations: {audience: ["user"]}`) so a client shows the character
+  walking in the conversation. `gifenc` (already used for the docs demo GIF) moves from
+  devDependencies to dependencies — still zero native additions.
+- **Seeded random characters.** `random_character` rolls a coherent character from any string
+  seed: same seed → same character, forever, across processes (cyrb128 → mulberry32, no
+  `Math.random`). Gear profiles (`bare` / `civilian` / `soldier` / `fancy`) tune how armed and
+  fancy the roll is; `complete_only` (default on) restricts always-visible groups to items that
+  paint both walk and idle, so random characters never have empty core rows; every emitted
+  item/color is pre-verified against the same resolvers hand-written selections go through.
+  Returns ready-to-render `selections`/`colors` plus an inline walk preview by default.
+- **NPC batches.** `generate_batch` populates a village in one call: N characters from one seed
+  (`seed:i` per character), each into its own directory with a full sheet, a walk preview and
+  credits, plus `index.png` (a contact grid of every character's walk frame), a `manifest.json`
+  indexing the batch, and one rolled-up `batch-credits.csv`/`.txt`. Same seed → same village.
+- **Curated presets.** `list_presets` describes 18 verified archetypes (knight, mage, blacksmith,
+  farmer, rogue, royal, child, zombie, lizardfolk, wheelchair user, …) and every render tool
+  accepts `preset: "<name>"` as a one-call starting point — explicit `selections`/`colors` merge
+  on top. Each preset was rendered and checked by test: every itemId is real, colors validate,
+  and the walk cycle paints with no missing-row warnings.
+
+### Added (engine-ready exports)
+
+- **Five atlas dialects.** `export_character.atlas_format` now takes `texturepacker` (default,
+  unchanged), `aseprite` (JSON data export with `frames` array + `meta.frameTags`, what
+  Aseprite-adjacent tooling and the Bevy sprite plugins read), `godot` (a `.tres` SpriteFrames
+  resource with one AtlasTexture sub-resource per unique frame rect and per-direction `loop`ing
+  animations at 10 fps — point an `AnimatedSprite2D` at it), `libgdx` (`.atlas` text regions,
+  Nearest-filtered, verified against TextureAtlas.java) and `unity` (`sheet.png.meta`
+  TextureImporter with the sprite sheet pre-sliced: Multiple mode, Point filter, 64 px/unit,
+  feet pivots, deterministic GUID). Every format was verified against its consumer's docs,
+  parser, or a saved file from the engine itself — the sources are cited in
+  `src/atlas-formats.js`.
+- **Cycle-correct playback everywhere.** The TexturePacker atlas gains the `animations` map
+  (TexturePacker/Pixi convention: `"walk_down": ["walk_down_2", …, "walk_down_9"]`), the
+  manifest carries it for every dialect, Aseprite's `meta.animations` mirrors it, Godot's
+  animations play in cycle order, and Unity's `userData` embeds it for scripting clips. Playback
+  order is the classic LPC integration bug — no consumer has to re-derive it now.
+
+### Added (share and return)
+
+- **`generatorUrl` on every render.** Each result links to the upstream web app preloaded with
+  the exact character (`#sex=female&hair=Bangs_red&…`), so a human can open and tweak the same
+  character in the browser. The encoder is a faithful port of upstream's `hash.ts` serialization
+  — differentially verified byte-identical against a transcription of upstream's logic across
+  53,604 selection shapes (every item × variant × recolor the pack ships).
+- **MCP prompts** (`design-a-character`, `populate-a-village`, `export-for-my-engine`): scripted
+  agent flows that chain the tools well — discovery → preview → iterate → export, with the
+  engine-specific atlas guidance baked into the export flow.
+- **MCP resources** (`lpc://sheet-layout`, `lpc://licensing`, `lpc://presets`): reference
+  material an agent can cite without a tool call — the stable layout table, the attribution
+  cheat sheet, the preset library.
+
+### Added (opt-in AI design)
+
+- **`design_character`** turns a natural-language brief ("a tanned female blacksmith with a
+  leather apron and a hammer") into ready-to-render `selections`/`colors`, with the model's
+  rationale and an inline preview of the result. **Strictly opt-in:** the server stays fully
+  offline unless `LPC_AI_API_KEY` is set in its environment; without it the tool returns a setup
+  error, never a network call. Config: `LPC_AI_BASE_URL` (any OpenAI-compatible endpoint;
+  defaults to Dashscope's), `LPC_AI_MODEL` (qwen3.7-plus, kimi-k2.5, qwen3.6-plus; default
+  kimi-k2.5, which measured ~6s on this task where the qwen models took 50–70s — the difference
+  between fitting and not fitting an MCP client's default request timeout). The model is
+  grounded on a byte-budgeted catalog digest (7.5k chars: itemIds per curated group, counts for
+  the rest, palettes), its proposal is validated through the same `normalizeSelections` as
+  hand-written input, and one self-healing round feeds a failed proposal back with the valid
+  itemIds before giving up with the full proposal + hint.
+
+### Fixed
+
+- Duplicated `limit`/`offset` validation in `list_items` (dead code from the 1.3.0 surface —
+  the same check ran twice per call).
+
+### Internal
+
+- The test suite grows from 66 to 140 passing items across six new files (`gif`, `random`,
+  `presets`, `atlas-formats`, `url`, `ai`, plus the `mcp-new-tools` end-to-end suite). The
+  golden manifest is untouched: rendering is provably byte-identical to 1.3.0.
+- `get_preview` GIF/PNG output paths always end in the extension of the format actually written.
+
 ## [1.3.0] - 2026-10-14
 
 Audited against the live asset pack rather than against the docs: every claim below was measured

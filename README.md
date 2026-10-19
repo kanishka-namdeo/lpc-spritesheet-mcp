@@ -15,10 +15,12 @@
 [Universal-LPC-Spritesheet-Character-Generator](https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator)
 web app re-implemented as a headless Node.js [MCP](https://modelcontextprotocol.io) server: an agent
 describes a character, and gets back a game-ready 832×3456 spritesheet with the exact frame layout —
-no browser, no screenshotting, no manual export button.
+no browser, no screenshotting, no manual export button. Want to *see* it first? Previews come back
+as **animated GIFs**. Want a whole village? **One seeded call.** Tired of discovering itemIds?
+**Presets** and an **opt-in AI designer** start from plain language.
 
 <p align="center">
-  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the nine tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
+  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the thirteen tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
   <sub>A real session against <code>src/index.js</code> over stdio — every byte of JSON shown is what the server returned.<br>
   Only the typing timing is authored. Regenerate with <code>npm run demo</code> (<a href="./docs/img/demo-credits.csv">attribution</a>).</sub>
 </p>
@@ -32,17 +34,31 @@ no browser, no screenshotting, no manual export button.
 - **15 animation row blocks** on the standard sheet: 13 run in all four directions, `hurt` and
   `climb` ship a single facing — that is exactly the 54 rows. Plus **custom-animation blocks** for
   wheelchairs and 128/192px oversize weapons and tools.
+- **Watch it walk.** `get_preview` returns one direction's playback cycle as a strip PNG or a
+  **looping animated GIF** — inline in the conversation, correct LPC playback order, transparency
+  preserved.
+- **Surprise me, reproducibly.** `random_character` rolls a coherent character from any seed
+  (same seed → same character, forever) with gear profiles from `bare` to `fancy`;
+  `generate_batch` populates a whole NPC village in one call — sheets, previews, a contact grid,
+  a manifest and one rolled-up credits file. **18 curated presets** (`knight`, `mage`,
+  `blacksmith`, …) render in a single call via `preset: "<name>"`.
 - **Engine-ready output.** Every render returns rows, frame counts, playback cycles and custom-block
   offsets, and `export_character` fans the same character out into per-animation or per-frame PNGs
-  with a TexturePacker/Phaser JSON Hash atlas and a manifest, so a game engine never has to guess the
+  with an atlas in **five dialects** — TexturePacker/Phaser JSON Hash (with a cycle-correct
+  `animations` map), Aseprite JSON (frameTags), Godot 4 `.tres` SpriteFrames, libGDX `.atlas`, and
+  Unity pre-sliced `.png.meta` — plus a manifest, so a game engine never has to guess the
   layout or slice the sheet itself.
+- **Opt-in AI design.** Configure `LPC_AI_API_KEY` and `design_character` turns a plain-language
+  brief ("a tanned blacksmith with a leather apron and a hammer") into selections, colors, a
+  rationale and a preview. Without the key the server stays **fully offline**: no network calls,
+  no telemetry, and one environment variable (`LPC_ASSETS_DIR`).
 - **Deterministic, and now proven.** `npm run golden` records SHA-256 hashes of seven canonical
   renders against a pinned asset-pack revision, and the test suite fails if a render drifts.
 - **Attribution included.** Each sheet gets `-credits.csv` / `-credits.txt` beside it naming the
   authors and licenses of the art actually used.
 
 The server ships **no art**. It reads a local clone of the upstream asset pack and renders it,
-entirely offline: no network calls, no telemetry, and one environment variable (`LPC_ASSETS_DIR`).
+offline by default: no network calls, no telemetry, and one environment variable (`LPC_ASSETS_DIR`).
 
 ## Install
 
@@ -72,7 +88,7 @@ prints what it searched for and exits — it will not start half-configured.
 No MCP client required — the official protocol inspector drives the server from a shell:
 
 ```bash
-# list the nine tools and their schemas
+# list the thirteen tools and their schemas
 npx -y @modelcontextprotocol/inspector --cli node src/index.js --method tools/list
 
 # or render a walk cycle and print the JSON payload that names the PNG it wrote
@@ -141,7 +157,7 @@ claude mcp add lpc-spritesheet -- npx -y lpc-spritesheet-mcp
 ```
 </details>
 
-## The nine tools
+## The thirteen tools
 
 | Tool | Purpose |
 |---|---|
@@ -149,13 +165,21 @@ claude mcp add lpc-spritesheet -- npx -y lpc-spritesheet-mcp
 | `list_items` | One category: exact `itemId`s, display names, pre-sliced variants, valid recolors — deduplicated into a response-level `palettes` map. Filter with `search`, page with `limit`/`offset`, shrink with `fields`; the response is byte-budgeted, so check `truncated`/`nextOffset`. |
 | `list_palettes` | Color names per material (`body`, `hair`, `eye`, `cloth`, `metal`, `wood`, `all`), with each material's default. |
 | `list_animations` | The row layout of every animation (rows, frame counts, playback cycles, y-offsets) plus the custom blocks, which items provide them, and whether any item does. |
-| `generate_spritesheet` | Render the full universal sheet; returns the path, layout, warnings, credits and the asset-pack revision. |
+| `list_presets` | The curated preset library (knight, mage, blacksmith, farmer, rogue, royal, child, zombie, lizardfolk, wheelchair user, …) — renderable in one call with `preset: "<name>"`. |
+| `generate_spritesheet` | Render the full universal sheet; returns the path, layout, warnings, credits, the upstream `generatorUrl` and the asset-pack revision. |
 | `get_animation` | Render, then crop ONE animation into its own PNG — standard row block or custom block. |
-| `get_preview` | Render, then crop one direction's playback cycle, upscaled 1–8×. Small enough to return inline, so you also get the image itself, not just a path. |
-| `export_character` | Render, then fan out into a directory bundle: `sheet.png`, a TexturePacker/Phaser JSON Hash atlas of every frame rect, `manifest.json`, and either one PNG per animation row block (`mode: "animation"`) or one per frame (`mode: "frames"`), plus credits. |
+| `get_preview` | Render, then crop one direction's playback cycle, upscaled 1–8× — as a strip PNG or a **looping animated GIF** (`format: "gif"`). Small enough to return inline, so you also get the image itself, not just a path. |
+| `export_character` | Render, then fan out into a directory bundle: `sheet.png`, an atlas in one of **five dialects** (`texturepacker`, `aseprite`, `godot`, `libgdx`, `unity`) with cycle-correct playback sequences, `manifest.json`, and either one PNG per animation row block (`mode: "animation"`) or one per frame (`mode: "frames"`), plus credits. |
+| `random_character` | Roll a coherent character from a seed — same seed, same character, forever. Gear profiles (`bare`/`civilian`/`soldier`/`fancy`), a completeness guarantee for core rows, ready-to-render selections/colors and an inline walk preview. |
+| `generate_batch` | Populate a village in one call: N seeded characters → per-character sheets/previews/credits + `index.png` contact grid + `manifest.json` + one rolled-up credits file. |
+| `design_character` | *(Opt-in, needs `LPC_AI_API_KEY`)* Turn a natural-language brief into ready-to-render selections/colors — catalog-grounded, validated, self-healing, with the model's rationale and an inline preview. |
 | `validate_sheet` | Audit instead of render: the port's row-block tables against the pack (`layout`), a character's painted columns against the declared frame counts (`character`), or item definitions against what this port can resolve (`catalog`). Writes nothing; `ok: false` names what failed. |
 
-The render tools share one argument block: `bodyType`, `selections`, `colors`, `character`,
+Three **prompts** (`design-a-character`, `populate-a-village`, `export-for-my-engine`) script the
+full agent workflows, and three **resources** (`lpc://sheet-layout`, `lpc://licensing`,
+`lpc://presets`) serve reference material without a tool call.
+
+The render tools share one argument block: `bodyType`, `preset`, `selections`, `colors`, `character`,
 `match_body_color`, `include_credits`, `include_character_json` — plus `output_path` for the three
 single-file tools and `output_dir` for `export_character`. Item IDs, display names, `"none"`, and
 `{itemId, variant?, recolor?}` objects are all accepted per group. `character` takes the web app's
@@ -214,6 +238,44 @@ Relative `output_path`s resolve against the **server's** working directory, not 
 `output_path` entirely and the sheet lands in `lpc-spritesheet/` under the OS temp directory, with a
 timestamp suffix so two renders never overwrite each other.
 
+### See it walk, in the same reply
+
+```jsonc
+// tools/call → get_preview  (same character, animated)
+{
+  "bodyType": "female",
+  "selections": { "hair": "Bangs", "clothes": "Longsleeve", "weapon": "Recurve", "hat": "Hood" },
+  "colors": { "body": "amber", "hair": "red", "clothes": "teal", "eyes": "green" },
+  "animation": "walk", "direction": "down", "scale": 2,
+  "format": "gif", "fps": 10
+}
+```
+
+The GIF comes back inline (`image/gif`) *and* as a file — a looping walk cycle with the correct
+LPC playback order, transparency preserved, a few KB for a 64px strip.
+
+### One seed, one village
+
+```jsonc
+// tools/call → generate_batch
+{ "count": 8, "seed": "riverford", "gear": "civilian" }
+// ← 8 characters under one directory: 01/sheet.png, 01/preview.png, 01/character-credits.csv, …
+//   + index.png (everyone at a glance) + manifest.json + batch-credits.csv
+//   same seed → the same village, forever
+```
+
+### Or start from plain language (opt-in)
+
+Set `LPC_AI_API_KEY` (any OpenAI-compatible endpoint via `LPC_AI_BASE_URL`; models
+`qwen3.7-plus` / `kimi-k2.5` / `qwen3.6-plus`, default the fast `kimi-k2.5`) and:
+
+```jsonc
+// tools/call → design_character
+{ "prompt": "a tanned female blacksmith with a leather apron and a hammer" }
+// ← { bodyType: "female", selections: { … apron: "torso_aprons_apron_full", weapon: "tool_hammer" … },
+//     colors: { body: "bronze", … }, rationale: "…", preview: { … inline walk strip … } }
+```
+
 ## What comes out
 
 <p align="center">
@@ -242,7 +304,7 @@ preview strip ~80–140 ms. A fresh MCP client pays the cold path once per proce
 ## How it works
 
 <p align="center">
-  <img src="docs/img/architecture.svg" alt="System architecture: an MCP client speaks JSON-RPC over stdio to src/index.js, which dispatches nine tools into a shared request pipeline in src/character.js; that pipeline drives the engine modules over a read-only external asset pack and renders through @napi-rs/canvas to a PNG, a bundle directory, or an in-memory audit, always with attribution files" width="1000">
+  <img src="docs/img/architecture.svg" alt="System architecture: an MCP client speaks JSON-RPC over stdio to src/index.js, which dispatches thirteen tools into a shared request pipeline in src/character.js; that pipeline drives the engine modules over a read-only external asset pack and renders through @napi-rs/canvas to a PNG, a bundle directory, or an in-memory audit, always with attribution files" width="1000">
 </p>
 
 `src/index.js` is the MCP surface, `src/character.js` is the request pipeline, and `src/engine/` is a
@@ -295,7 +357,7 @@ only hurt/idle/jump/sit/slash/walk, so its other rows come back empty by design,
 ```bash
 npm install
 npm run setup-assets    # or lpc-spritesheet-setup if you installed globally
-npm test                # 66 passing items: 25 engine, 16 stdio MCP, 15 surface, 9 golden, 1 smoke
+npm test                # 140 passing items: 25 engine, 16+22 stdio MCP (old surface + new tools), 15 surface, 9 golden, 1 smoke, 52 module tests (gif/random/presets/atlas/url/ai)
 npm run golden          # re-record test/golden.json after an intended rendering change
 npm run assets          # regenerate every committed image (docs/img/)
 ```

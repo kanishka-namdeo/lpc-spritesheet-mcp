@@ -104,8 +104,14 @@ These bind every subtree. Child docs may add local detail but may not weaken the
 - **The universal sheet layout is an external contract.** 13 columns x 54 rows of 64px
   frames (832x3456), with the row-block grid in `src/engine/constants.js`. Engine consumers
   parse it from tool results. Changing it is a breaking change and a version bump.
-- **Runtime is offline and inert.** No network calls, no telemetry, no secrets, no env reads
-  other than `LPC_ASSETS_DIR`. `SECURITY.md` is the outward statement of this.
+- **Runtime is offline and inert by default.** No network calls, no telemetry, no secrets, no env
+  reads other than `LPC_ASSETS_DIR` — **with one opt-in exception**: when `LPC_AI_API_KEY` is set,
+  the `design_character` tool calls an OpenAI-compatible chat endpoint (`LPC_AI_BASE_URL`,
+  `LPC_AI_MODEL`; see `src/ai.js`). Without the key the server is fully offline and that tool
+  returns a setup error. `SECURITY.md` is the outward statement of this. (Recorded 2026-10-19 at
+  the owner's request: the Dashscope coding-intl endpoint with the qwen3.7-plus / kimi-k2.5 /
+  qwen3.6-plus models is the reference configuration; kimi-k2.5 is the default because it measured
+  ~6s on the design task where the qwen models took 50–70s.)
 - **Version is declared in three places and they must agree:** `package.json`, the `Server`
   info in `src/index.js`, and the newest `CHANGELOG.md` heading.
 - **The published tarball is chosen by `package.json` `files`,** not by `.npmignore`: `src/`,
@@ -151,12 +157,20 @@ only a small env allowlist, so an unset child environment is the difference betw
 
 When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md.
 
+- 2026-10-19 (owner): the offline-runtime contract gains the opt-in `LPC_AI_*` AI-design exception
+  (see Global Contracts above). The reference endpoint is Dashscope coding-intl
+  (`https://coding-intl.dashscope.aliyuncs.com/v1`, OpenAI-compatible) with models qwen3.7-plus /
+  kimi-k2.5 / qwen3.6-plus; keys are passed by the operator's MCP client env, never committed.
+- 2026-10-19 (owner): delight features are first-class — animated GIF previews, seeded random
+  characters, NPC batches, curated presets, multi-engine atlas dialects, upstream `generatorUrl`
+  round-trip, MCP prompts/resources. All offline-capable except design_character (above).
+
 ## Child DOX Index
 
 | Path | Owns |
 |---|---|
-| `src/` | Shipped runtime: the nine-tool MCP surface, the shared character-request pipeline, the bundle exporter, the saved-character reader/writer, the layout auditor |
-| `src/engine/` | Headless port of the upstream renderer; fidelity rules |
+| `src/` | Shipped runtime: the thirteen-tool MCP surface (+ prompts/resources), the shared character-request pipeline, the bundle exporter, the atlas dialect emitters, the preset library, the seeded random generator, the opt-in AI designer, the saved-character reader/writer, the layout auditor |
+| `src/engine/` | Headless port of the upstream renderer; fidelity rules; GIF encoding |
 | `test/` | The acceptance gate: engine tests, real stdio MCP tests, the golden determinism manifest, canvas smoke |
 | `scripts/` | Asset-pack setup and the generators behind every committed image in `docs/img/`, plus `npm run golden` |
 | `docs/` | Durable internals: port map, invariants, upstream capability record |

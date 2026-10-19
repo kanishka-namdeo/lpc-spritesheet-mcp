@@ -45,7 +45,7 @@ const text = (res) => JSON.parse(res.content[0].text);
 
 test("every tool carries a title and full risk annotations", async () => {
   const { tools } = await globalThis.surfaceClient.listTools();
-  assert.equal(tools.length, 9);
+  assert.equal(tools.length, 13);
   for (const t of tools) {
     assert.ok(t.title, `${t.name} has no title`);
     for (const hint of ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]) {
@@ -54,7 +54,10 @@ test("every tool carries a title and full risk annotations", async () => {
     const readOnly = t.name.startsWith("list_") || t.name === "validate_sheet";
     assert.equal(t.annotations.readOnlyHint, readOnly, `${t.name} readOnlyHint`);
     assert.equal(t.annotations.destructiveHint, false, `${t.name} never deletes`);
-    assert.equal(t.annotations.openWorldHint, false, `${t.name} makes no network calls`);
+    // design_character is the one open-world tool: it calls an external AI endpoint,
+    // and says so honestly — every other tool stays offline.
+    const openWorld = t.name === "design_character";
+    assert.equal(t.annotations.openWorldHint, openWorld, `${t.name} openWorldHint`);
     assert.equal(t.annotations.idempotentHint, readOnly, `${t.name} mints a timestamped file per call`);
   }
   assert.deepEqual(tools.find((t) => t.name === "get_animation").inputSchema.required, ["animation"]);
@@ -63,6 +66,12 @@ test("every tool carries a title and full risk annotations", async () => {
     tools.find((t) => t.name === "export_character").inputSchema.properties.mode.enum,
     ["animation", "frames"],
   );
+  assert.deepEqual(
+    tools.find((t) => t.name === "export_character").inputSchema.properties.atlas_format.enum,
+    ["texturepacker", "aseprite", "godot", "libgdx", "unity"],
+  );
+  assert.deepEqual(tools.find((t) => t.name === "generate_batch").inputSchema.required, ["count"]);
+  assert.deepEqual(tools.find((t) => t.name === "design_character").inputSchema.required, ["prompt"]);
 });
 
 test("the render description states the measured maximum width", async () => {
@@ -80,10 +89,12 @@ test("declared outputSchemas are paired with structuredContent", async () => {
   const declared = tools.filter((t) => t.outputSchema).map((t) => t.name).sort();
   assert.deepEqual(declared, [
     "export_character",
+    "generate_batch",
     "list_animations",
     "list_categories",
     "list_items",
     "list_palettes",
+    "list_presets",
     "validate_sheet",
   ]);
   for (const name of ["list_categories", "list_animations", "list_palettes"]) {
@@ -244,9 +255,9 @@ test("export_character validates its own arguments and warns about ignored ones"
   assert.equal(badMode.isError, true);
   assert.match(text(badMode).error, /Unknown mode "zip"/);
 
-  const badAtlas = await callTool("export_character", { atlas_format: "godot" });
+  const badAtlas = await callTool("export_character", { atlas_format: "photoshop" });
   assert.equal(badAtlas.isError, true);
-  assert.match(text(badAtlas).error, /Unknown atlas_format "godot"/);
+  assert.match(text(badAtlas).error, /Unknown atlas_format "photoshop"/);
 
   const ignored = await callTool("export_character", {
     output_path: "ignored.png",
