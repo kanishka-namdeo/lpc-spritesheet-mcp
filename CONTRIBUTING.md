@@ -72,7 +72,10 @@ identity can mint. One-time setup: on the npm package, add a **Trusted Publisher
 Actions naming repository `kanishka-namdeo/lpc-spritesheet-mcp` and workflow `publish.yml`. Any
 branch or environment filter added there has to match the ref the workflow actually runs on — a
 `release` event runs on the tag, a dispatch on whatever ref it was started from. No npm token is
-kept in repo settings, and the publish step deliberately sets no `NODE_AUTH_TOKEN`.
+kept in repo settings, and the publish step deliberately sets no `NODE_AUTH_TOKEN`. The job installs
+`npm@11` first: trusted publishing needs npm CLI ≥ 11.5.1, Node 22 ships 10.x, and the older CLI
+fails at the upload with `404 'lpc-spritesheet-mcp@<version>' is not in this registry` — which reads
+like a missing package but is an anonymous PUT, after provenance was already signed and uploaded.
 
 The release sequence, run from a checkout whose asset pack is at the revision
 `test/golden.json` pins — read it with

@@ -53,6 +53,18 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org/
 
+      - name: Use an npm that can publish over OIDC
+        # npm's own floor for trusted publishing is CLI 11.5.1 (Node >= 22.14). Node 22 bundles npm
+        # 10.x, which has no OIDC publish path: it signs provenance, then PUTs anonymously and the
+        # registry answers the misleading "404 ... is not in this registry" instead of 401. Fail
+        # here with a legible message rather than at the upload.
+        run: |
+          npm install -g npm@11
+          NPM_V=$(npm -v)
+          echo "node $(node -v), npm $NPM_V"
+          node -e 'const [maj,min]=process.argv[1].split(".").map(Number); process.exit(maj>11||(maj===11&&min>=5)?0:1)' "$NPM_V" \
+            || { echo "::error::npm $NPM_V cannot do trusted publishing; need >= 11.5.1"; exit 1; }
+
       - name: "Guard: tag/version match, and skip cleanly if the version is already live"
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")

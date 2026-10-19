@@ -69,6 +69,11 @@ prerequisite is this project's highest-volume support path.
   repo settings. Keep the `npm-publish` concurrency group with `cancel-in-progress: false`: racing
   publishes make the loser fail on npm's no-republish rule. It re-checks-out the pinned asset pack
   because `prepublishOnly` re-runs the suite, so a pin bump touches both workflow files.
+- **Trusted publishing needs npm CLI >= 11.5.1, and the runner's Node does not bring it.** Node 22
+  bundles npm 10.x, which has no OIDC publish path: it signs and uploads the provenance statement,
+  then PUTs anonymously and the registry returns `404 ... is not in this registry` — not `401`. The
+  job therefore installs `npm@11` and asserts the floor before anything else runs. A 404 at the
+  upload step means npm version or publisher configuration, never a missing package.
 - **A tag is a publish input, not a note.** The workflow ships whatever the tag checks out, and its
   guard compares only the version string, so a tag left behind a later packaging change publishes
   the older manifest while still passing green. Retarget the tag (or roll a new version) whenever the
