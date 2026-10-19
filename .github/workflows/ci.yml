@@ -26,7 +26,7 @@ jobs:
           # Pinned: test/golden.json holds SHA-256 hashes of renders made from this pack, and a
           # hash is only a gate if the art behind it is fixed. Bump this together with
           # LPC_ASSETS_PACK_REVISION in .github/AGENTS.md, then re-record with `npm run golden`.
-          ref: 553ba7562534cbf32e7d9a502660f569d6b26512
+          ref: 9bf06be193b053db256b2536824af426de046aa2
 
       - uses: actions/setup-node@v7
         with:

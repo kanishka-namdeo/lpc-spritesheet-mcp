@@ -31,7 +31,7 @@ project's highest-volume support path.
 
 - **The asset pack is provisioned, never vendored — and the checkout is pinned.** The CI
   asset-pack checkout (LPC_ASSETS_PACK_REVISION, referenced by the `ref:` comment in `ci.yml`) is
-  `553ba7562534cbf32e7d9a502660f569d6b26512` (`depth: 1`): CI checks out
+  `9bf06be193b053db256b2536824af426de046aa2` (`depth: 1`): CI checks out
   `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator` at that ref into
   `lpc-generator-src` and passes it as
   `LPC_ASSETS_DIR`. That env var is load-bearing: without it
