@@ -64,12 +64,18 @@ enough — no export needed.
 
 ## Releasing
 
-There is no publish workflow — CI runs `npm test` (against the asset-pack revision pinned in
-`.github/workflows/ci.yml`) and the no-assets check, and stops there. The
-release is a human sequence, run from a checkout with the asset pack present.
+CI runs `npm test` (against the asset-pack revision pinned in
+`.github/workflows/ci.yml`) and the no-assets check. Publishing happens from CI —
+[`publish.yml`](./.github/workflows/publish.yml) runs on a published GitHub release (or a manual
+dispatch), gates on the same tests, and publishes with **provenance**, which only CI's OIDC
+identity can mint. One-time setup: add an `NPM_TOKEN` secret (an *Automation*-type npm access
+token, which is exempt from 2FA) to the repository settings.
+
+The release sequence, run from a checkout with the asset pack present:
 
 1. **Gate first.** `npm test` (140 items) locally and CI green on `main`. Nothing else in this repo
    checks the publish surface, so do not skip this step and do not publish from a dirty tree.
+   (`npm publish` re-runs the suite itself via `prepublishOnly` — that is the backstop, not the gate.)
 2. **Decide the version.** A change to the 832x3456 universal layout, a tool rename, or any other
    break of the external contract is a major. A new tool, argument, or `bin` is a minor. Everything
    else is a patch.
@@ -87,15 +93,21 @@ release is a human sequence, run from a checkout with the asset pack present.
      node_modules/lpc-spritesheet-mcp/src/index.js --method tools/list
    ```
 
-   Check the tarball list too: `src/`, `scripts/setup-assets.mjs`, `docs/*.md`, `README.md`,
-   `CHANGELOG.md`, `LICENSE`. No `docs/img/`, no generators, no `test/`, no asset pack. `tools/list`
+   Check the tarball list too: `src/`, `scripts/setup-assets.mjs`, `docs/ARCHITECTURE.md` +
+   `docs/capability-inventory.md`, `README.md`, `CHANGELOG.md`, `LICENSE`. No `docs/img/`, no
+   `AGENTS.md` files, no generators, no `test/`, no asset pack. `tools/list`
    must return the thirteen tools, and `initialize` must report the version you just set.
-5. **Publish.** `npm whoami` must already answer; if the account requires 2FA, pass `--otp=<code>`.
-   Provenance cannot be minted from a workstation — `--provenance` needs CI's OIDC identity.
-6. **Mark it.** `git tag v<version> && git push --tags`, then a GitHub release whose notes are that
-   `CHANGELOG.md` section. Nothing here enforces the tag, so it is easy to forget and painful to
-   reconstruct.
-7. **Verify from the registry.** `npm view lpc-spritesheet-mcp version`, and one `npx -y
+5. **Mark it.** `git tag v<version> && git push --tags`, then a GitHub release whose notes are that
+   `CHANGELOG.md` section. Publishing the release triggers `publish.yml`, which checks out the tag,
+   refuses to run if the tag and `package.json` disagree, skips cleanly if that version is already
+   on the registry, and otherwise runs the gate and publishes with provenance. Watch the run:
+   the last step prints the tarball URL and integrity of what landed.
+
+   Without an `NPM_TOKEN` secret, or for a version whose GitHub release already predates the
+   workflow, run `publish.yml` manually on the right ref (Actions → Publish → Run workflow), or
+   fall back to publishing from a workstation: `npm whoami` must already answer; if the account
+   requires 2FA, pass `--otp=<code>` — and note that a workstation publish carries no provenance.
+6. **Verify from the registry.** `npm view lpc-spritesheet-mcp version`, and one `npx -y
    lpc-spritesheet-mcp` startup from a directory that is not this checkout.
 
 `lpc-spritesheet-setup` in step 4 clones ~350 MB when no pack is found, and prints "already present"

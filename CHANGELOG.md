@@ -98,6 +98,24 @@ gains three MCP prompts and three MCP resources. Rendering itself is byte-identi
   golden manifest is untouched: rendering is provably byte-identical to 1.3.0.
 - `get_preview` GIF/PNG output paths always end in the extension of the format actually written.
 
+### Publishing
+
+- Landed with the 1.4.0 tarball, so npm users get them as part of 1.4.0:
+  - `bin` paths normalized (`./src/index.js` → `src/index.js`). npm 11.x flags the `./` form
+    as invalid and silently *removes* the bins from the published manifest, breaking
+    `npx lpc-spritesheet-mcp` and `lpc-spritesheet-setup`; both now use the form npm accepts
+    (the registry had been auto-correcting earlier versions).
+  - Both bin scripts carry the executable bit in git (`100755`), so the tarball preserves it.
+  - The tarball no longer ships the three contributor/agent `AGENTS.md` files (repo-side docs,
+    no user value); `prepublishOnly: "npm test"` now gates every publish against the full
+    140-item suite.
+  - README images and links to files outside the tarball now use absolute GitHub URLs, so the
+    npm registry page renders the banner, demo GIF, gallery and architecture diagram instead
+    of broken images.
+  - New `publish.yml` workflow publishes to npm from CI with provenance (release-published or
+    manual dispatch): tag/version drift fails fast, an already-published version skips cleanly
+    instead of erroring on re-run, and the full test gate runs before upload.
+
 ## [1.3.0] - 2026-10-14
 
 Audited against the live asset pack rather than against the docs: every claim below was measured

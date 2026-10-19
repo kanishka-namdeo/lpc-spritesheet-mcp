@@ -1,0 +1,101 @@
+name: Publish
+
+# Publishes to npm from CI, where the OIDC identity lets npm mint a provenance
+# attestation (impossible from a workstation). Two ways in:
+#   - a published GitHub release checks out exactly its tag and ships that, and
+#   - a manual dispatch ships the ref it was run on (used for versions whose
+#     GitHub release predates this workflow).
+# Requires an NPM_TOKEN secret (Automation type) in the repo settings.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Two publishes must never race; a queued run waits instead of being cancelled,
+# because the loser would otherwise fail on npm's no-republish rule.
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write  # npm provenance: signs the attestation with this OIDC identity
+
+jobs:
+  publish:
+    name: publish (node 22, ubuntu)
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A release publishes exactly its tag; a dispatch publishes the ref it
+          # was dispatched on. github.event.release is null on dispatch, so the
+          # || falls through to the branch ref.
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Check out upstream asset pack (required by the test suite)
+        uses: actions/checkout@v7
+        with:
+          repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
+          path: lpc-generator-src
+          depth: 1
+          # Pinned to the same revision as ci.yml — see the bump procedure there.
+          ref: 9bf06be193b053db256b2536824af426de046aa2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
+      - name: "Guard: tag/version match, and skip cleanly if the version is already live"
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$RELEASE_TAG" ] && [ "v$PKG_VERSION" != "$RELEASE_TAG" ]; then
+            echo "::error::package.json says $PKG_VERSION but the release tag is $RELEASE_TAG — publish runs from the tag."
+            exit 1
+          fi
+          if npm view "lpc-spritesheet-mcp@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "::notice::lpc-spritesheet-mcp@$PKG_VERSION is already on the registry — nothing to do."
+            echo "SKIP_PUBLISH=true" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_PUBLISH=false" >> "$GITHUB_ENV"
+            echo "Publishing lpc-spritesheet-mcp@$PKG_VERSION"
+          fi
+
+      - name: Install dependencies
+        if: env.SKIP_PUBLISH != 'true'
+        run: npm ci
+
+      - name: Run tests
+        if: env.SKIP_PUBLISH != 'true'
+        run: npm test
+        env:
+          LPC_ASSETS_DIR: ${{ github.workspace }}/lpc-generator-src
+
+      - name: Server fails gracefully without assets
+        if: env.SKIP_PUBLISH != 'true'
+        shell: bash
+        run: |
+          # `bash -e` aborts the step at a failing command, so the exit code has to be
+          # captured with `|| code=$?` rather than read from `$?` on the next line.
+          code=0
+          LPC_ASSETS_DIR=/nonexistent node src/index.js >/dev/null 2>err.log || code=$?
+          grep -q "asset pack is not installed" err.log
+          test "$code" -eq 1
+
+      - name: Publish with provenance
+        if: env.SKIP_PUBLISH != 'true'
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # prepublishOnly re-runs the suite inside the publish, so it needs the pack too.
+          LPC_ASSETS_DIR: ${{ github.workspace }}/lpc-generator-src
+
+      - name: Show what landed
+        if: env.SKIP_PUBLISH != 'true'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          npm view "lpc-spritesheet-mcp@$VERSION" version dist.tarball dist.integrity

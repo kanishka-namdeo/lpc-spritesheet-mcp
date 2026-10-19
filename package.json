@@ -19,13 +19,16 @@
   "type": "module",
   "main": "./src/index.js",
   "bin": {
-    "lpc-spritesheet-mcp": "./src/index.js",
-    "lpc-spritesheet-setup": "./scripts/setup-assets.mjs"
+    "lpc-spritesheet-mcp": "src/index.js",
+    "lpc-spritesheet-setup": "scripts/setup-assets.mjs"
   },
   "files": [
     "src",
+    "!src/AGENTS.md",
+    "!src/engine/AGENTS.md",
     "scripts/setup-assets.mjs",
     "docs/*.md",
+    "!docs/AGENTS.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -41,7 +44,8 @@
     "demo": "node scripts/make-demo-gif.mjs",
     "golden": "node scripts/make-golden.mjs",
     "assets": "npm run diagrams && npm run showcase && npm run demo",
-    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/mcp-surface-test.mjs test/golden-test.mjs test/smoke-canvas.mjs test/gif-test.mjs test/random-test.mjs test/presets-test.mjs test/atlas-formats-test.mjs test/url-test.mjs test/ai-test.mjs test/mcp-new-tools-test.mjs"
+    "test": "node --test test/run-tests.mjs test/mcp-client-test.mjs test/mcp-surface-test.mjs test/golden-test.mjs test/smoke-canvas.mjs test/gif-test.mjs test/random-test.mjs test/presets-test.mjs test/atlas-formats-test.mjs test/url-test.mjs test/ai-test.mjs test/mcp-new-tools-test.mjs",
+    "prepublishOnly": "npm test"
   },
   "repository": {
     "type": "git",

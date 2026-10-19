@@ -1,7 +1,7 @@
 # lpc-spritesheet-mcp
 
 <p align="center">
-  <img src="docs/img/hero.png" alt="lpc-spritesheet-mcp banner: a knight with a sword, an archer with a hood and bow, and a mage in a purple kimono, each rendered by this server, with the 13-by-54 universal sheet layout drawn at top right" width="1184">
+  <img src="https://raw.githubusercontent.com/kanishka-namdeo/lpc-spritesheet-mcp/main/docs/img/hero.png" alt="lpc-spritesheet-mcp banner: a knight with a sword, an archer with a hood and bow, and a mage in a purple kimono, each rendered by this server, with the 13-by-54 universal sheet layout drawn at top right" width="1184">
 </p>
 
 <p align="center">
@@ -20,9 +20,9 @@ as **animated GIFs**. Want a whole village? **One seeded call.** Tired of discov
 **Presets** and an **opt-in AI designer** start from plain language.
 
 <p align="center">
-  <img src="docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the thirteen tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
+  <img src="https://raw.githubusercontent.com/kanishka-namdeo/lpc-spritesheet-mcp/main/docs/img/demo.gif" alt="Terminal recording of a real MCP session: the server reports 657 items and 104 groups, tools/list returns the thirteen tools, list_animations reports the walk row block, and a get_preview call renders a hooded character's walk cycle animating in the stage panel" width="880"><br>
   <sub>A real session against <code>src/index.js</code> over stdio — every byte of JSON shown is what the server returned.<br>
-  Only the typing timing is authored. Regenerate with <code>npm run demo</code> (<a href="./docs/img/demo-credits.csv">attribution</a>).</sub>
+  Only the typing timing is authored. Regenerate with <code>npm run demo</code> (<a href="https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/blob/main/docs/img/demo-credits.csv">attribution</a>).</sub>
 </p>
 
 - **657 selectable items across 104 groups** on the current asset pack: 6 body types
@@ -313,17 +313,17 @@ Set `LPC_AI_API_KEY` (any OpenAI-compatible endpoint via `LPC_AI_BASE_URL`; mode
 ## What comes out
 
 <p align="center">
-  <img src="docs/img/gallery.png" alt="Nine generated characters in a three-by-three grid, each captioned with the capability it proves: heraldic shield pattern, an animation-scoped bow item, a wheelchair custom block, a palette recolor, the child body type, the muscular body type, a lizard head, an undead head with zombie skin, and a 128px katana animation block" width="1152">
+  <img src="https://raw.githubusercontent.com/kanishka-namdeo/lpc-spritesheet-mcp/main/docs/img/gallery.png" alt="Nine generated characters in a three-by-three grid, each captioned with the capability it proves: heraldic shield pattern, an animation-scoped bow item, a wheelchair custom block, a palette recolor, the child body type, the muscular body type, a lizard head, an undead head with zombie skin, and a 128px katana animation block" width="1152">
   <br><sub>Nine characters, nine capabilities — every one is a single tool call.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/img/walk-strip.png" alt="A muscular axe-wielding character's walk playback cycle: eight frames of 64px art drawn at 2x in one row, each labelled with its cycle index from 1 to 8" width="1064">
+  <img src="https://raw.githubusercontent.com/kanishka-namdeo/lpc-spritesheet-mcp/main/docs/img/walk-strip.png" alt="A muscular axe-wielding character's walk playback cycle: eight frames of 64px art drawn at 2x in one row, each labelled with its cycle index from 1 to 8" width="1064">
   <br><sub><code>get_preview</code> — walk, down, 2×. The numbers are the cycle indices the tool returns.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/img/sheet-katana.png" alt="Three strips cropped from one generated katana sheet: the standard walk row block drawn at 2x with no katana sprite present, then the walk_128 and slash_128 custom blocks at native 128px" width="1216">
+  <img src="https://raw.githubusercontent.com/kanishka-namdeo/lpc-spritesheet-mcp/main/docs/img/sheet-katana.png" alt="Three strips cropped from one generated katana sheet: the standard walk row block drawn at 2x with no katana sprite present, then the walk_128 and slash_128 custom blocks at native 128px" width="1216">
   <br><sub><code>generate_spritesheet</code> — the 64px walk row above the two 128px custom blocks the katana appends.
   The empty walk row is the honest case: this weapon ships no standard-row art, and the tool says so in <code>warnings</code>.</sub>
 </p>
@@ -338,7 +338,7 @@ preview strip ~80–140 ms. A fresh MCP client pays the cold path once per proce
 ## How it works
 
 <p align="center">
-  <img src="docs/img/architecture.svg" alt="System architecture: an MCP client speaks JSON-RPC over stdio to src/index.js, which dispatches thirteen tools into a shared request pipeline in src/character.js; that pipeline drives the engine modules over a read-only external asset pack and renders through @napi-rs/canvas to a PNG, a bundle directory, or an in-memory audit, always with attribution files" width="1000">
+  <img src="https://raw.githubusercontent.com/kanishka-namdeo/lpc-spritesheet-mcp/main/docs/img/architecture.svg" alt="System architecture: an MCP client speaks JSON-RPC over stdio to src/index.js, which dispatches thirteen tools into a shared request pipeline in src/character.js; that pipeline drives the engine modules over a read-only external asset pack and renders through @napi-rs/canvas to a PNG, a bundle directory, or an in-memory audit, always with attribution files" width="1000">
 </p>
 
 `src/index.js` is the MCP surface, `src/character.js` is the request pipeline, and `src/engine/` is a
@@ -383,8 +383,8 @@ only hurt/idle/jump/sit/slash/walk, so its other rows come back empty by design,
   `*-credits.csv` / `*-credits.txt` beside the PNG listing exactly the authors, licenses and links
   for the assets used. **Keep those files when you redistribute renders.**
 - The images in this README are themselves renders, so they carry attribution too:
-  [`docs/img/showcase-credits.csv`](./docs/img/showcase-credits.csv) and
-  [`docs/img/demo-credits.csv`](./docs/img/demo-credits.csv).
+  [`showcase-credits.csv`](https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/blob/main/docs/img/showcase-credits.csv) and
+  [`demo-credits.csv`](https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/blob/main/docs/img/demo-credits.csv).
 
 ## Development
 
@@ -400,8 +400,8 @@ npm run assets          # regenerate every committed image (docs/img/)
 nothing else is claimed. CI runs the suite on Node 20 and 22 across Ubuntu and Windows, and asserts
 that the server fails cleanly when the pack is missing.
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md), the issue templates under
-[`.github/`](./.github), [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) and
+See [CONTRIBUTING.md](https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/blob/main/CONTRIBUTING.md), the issue templates under
+[`.github/`](https://github.com/kanishka-namdeo/lpc-spritesheet-mcp/tree/main/.github), [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) and
 [`docs/capability-inventory.md`](./docs/capability-inventory.md) (everything the *upstream* generator
 can do).
 
