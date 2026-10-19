@@ -74,11 +74,19 @@ branch or environment filter added there has to match the ref the workflow actua
 `release` event runs on the tag, a dispatch on whatever ref it was started from. No npm token is
 kept in repo settings, and the publish step deliberately sets no `NODE_AUTH_TOKEN`.
 
-The release sequence, run from a checkout with the asset pack present:
+The release sequence, run from a checkout whose asset pack is at the revision
+`test/golden.json` pins — read it with
+`node -p "require('./test/golden.json').packRevision"`, never with `npm run golden`, which
+re-records the manifest against whatever pack it finds:
 
 1. **Gate first.** `npm test` (140 items) locally and CI green on `main`. Nothing else in this repo
    checks the publish surface, so do not skip this step and do not publish from a dirty tree.
    (`npm publish` re-runs the suite itself via `prepublishOnly` — that is the backstop, not the gate.)
+   A pack that simply moved ahead is the usual reason this goes red on a working machine: the golden
+   gate compares the renders *and* the revision they were taken from, so an upstream bump fails the
+   suite with nothing wrong in this repo. Set `LPC_ASSETS_DIR` to a checkout of the pinned commit.
+   Moving to a newer pack is a deliberate change — the workflow `ref`, `scripts/setup-assets.mjs`'s
+   `LPC_ASSETS_REF`, and a re-recorded `test/golden.json` belong to one pass, never to a fix.
 2. **Decide the version.** A change to the 832x3456 universal layout, a tool rename, or any other
    break of the external contract is a major. A new tool, argument, or `bin` is a minor. Everything
    else is a patch.
