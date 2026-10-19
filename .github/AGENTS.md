@@ -33,7 +33,7 @@ prerequisite is this project's highest-volume support path.
 
 - **The asset pack is provisioned, never vendored — and the checkout is pinned.** The CI
   asset-pack checkout (LPC_ASSETS_PACK_REVISION, referenced by the `ref:` comment in `ci.yml`) is
-  `9bf06be193b053db256b2536824af426de046aa2` (`depth: 1`): CI checks out
+  `9bf06be193b053db256b2536824af426de046aa2` (`fetch-depth: 1`): CI checks out
   `LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator` at that ref into
   `lpc-generator-src` and passes it as
   `LPC_ASSETS_DIR`. That env var is load-bearing: without it
@@ -43,6 +43,10 @@ prerequisite is this project's highest-volume support path.
   re-recorded file in the same pass. `scripts/setup-assets.mjs` mirrors the pin with `LPC_ASSETS_REF`
   and prints the revision installed. The golden assertion runs inside `npm test`; CI adds no
   separate golden step.
+- **A misspelled workflow input warns; it does not fail.** Actions logs `Unexpected input(s)` and
+  ignores the value, so a renamed input silently changes behavior: `depth:` was renamed to
+  `fetch-depth:` in checkout@v7, and every leg kept fetching the pack's full history while CI stayed
+  green. Read a run's annotations, not only its color. Both workflows share this checkout.
 - **The matrix is the portability contract:** Node 20 and 22 on `ubuntu-latest` and
   `windows-latest`, `fail-fast: false`. Path handling and `@napi-rs/canvas` behavior are the reason
   Windows is in it. Do not drop a leg to make CI green.

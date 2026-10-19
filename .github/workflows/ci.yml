@@ -22,7 +22,9 @@ jobs:
         with:
           repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
           path: lpc-generator-src
-          depth: 1
+          # checkout@v7 renamed this input; the old `depth` spelling is warned about, not
+          # rejected, so a mistake here silently fetches the pack's whole history.
+          fetch-depth: 1
           # Pinned: test/golden.json holds SHA-256 hashes of renders made from this pack, and a
           # hash is only a gate if the art behind it is fixed. Bump this together with
           # LPC_ASSETS_PACK_REVISION in .github/AGENTS.md, then re-record with `npm run golden`.

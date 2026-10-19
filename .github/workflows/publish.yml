@@ -44,7 +44,7 @@ jobs:
         with:
           repository: LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator
           path: lpc-generator-src
-          depth: 1
+          fetch-depth: 1
           # Pinned to the same revision as ci.yml — see the bump procedure there.
           ref: 9bf06be193b053db256b2536824af426de046aa2
 
