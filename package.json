@@ -56,8 +56,8 @@
   },
   "homepage": "https://github.com/kanishka-namdeo/lpc-spritesheet-mcp#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "@napi-rs/canvas": "^1.0.11",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@napi-rs/canvas": "^1.0.13",
     "gifenc": "^1.0.3"
   }
 }
